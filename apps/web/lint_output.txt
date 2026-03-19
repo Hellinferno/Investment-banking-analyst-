@@ -1,0 +1,31 @@
+
+C:\Users\Lenovo\Downloads\AI Investment Banking Analyst Agent (AIBAA)\aibaa\apps\web\src\components\workspace\AgentsTab.tsx
+  11:60  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Lenovo\Downloads\AI Investment Banking Analyst Agent (AIBAA)\aibaa\apps\web\src\components\workspace\DCFResultsView.tsx
+    4:11  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  220:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Lenovo\Downloads\AI Investment Banking Analyst Agent (AIBAA)\aibaa\apps\web\src\components\workspace\DocumentsTab.tsx
+  72:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Lenovo\Downloads\AI Investment Banking Analyst Agent (AIBAA)\aibaa\apps\web\src\components\workspace\OverviewTab.tsx
+  1:49  error  'Triangle' is defined but never used      @typescript-eslint/no-unused-vars
+  3:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Lenovo\Downloads\AI Investment Banking Analyst Agent (AIBAA)\aibaa\apps\web\src\lib\api.ts
+  31:86  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Lenovo\Downloads\AI Investment Banking Analyst Agent (AIBAA)\aibaa\apps\web\src\pages\Dashboard.tsx
+  3:10  error  'Building2' is defined but never used  @typescript-eslint/no-unused-vars
+  3:37  error  'Activity' is defined but never used   @typescript-eslint/no-unused-vars
+  3:47  error  'Database' is defined but never used   @typescript-eslint/no-unused-vars
+
+C:\Users\Lenovo\Downloads\AI Investment Banking Analyst Agent (AIBAA)\aibaa\apps\web\src\pages\DealWorkspace.tsx
+  3:62  error  'Settings' is defined but never used  @typescript-eslint/no-unused-vars
+  4:10  error  'api' is defined but never used       @typescript-eslint/no-unused-vars
+
+??? 13 problems (13 errors, 0 warnings)
+
+
