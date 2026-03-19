@@ -1,0 +1,51 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+.venv/
+venv/
+
+# Python caches and tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node and frontend build artifacts
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+apps/web/build_output.txt
+apps/web/lint_output.txt
+apps/web/lint_output2.txt
+
+# Local databases and generated app state
+*.db
+*.sqlite
+*.sqlite3
+apps/api/aibaa/
+apps/api/test_outputs/
+apps/data/uploads/
+apps/data/outputs/
+test_outputs/
+
+# Logs
+*.log
+logs/
+
+# Local junk
+$null
+nul

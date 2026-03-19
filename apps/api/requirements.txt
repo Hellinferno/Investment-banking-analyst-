@@ -1,0 +1,52 @@
+# ── Core API framework ──────────────────────────────────────────
+fastapi[standard]>=0.135.0
+uvicorn[standard]>=0.41.0
+python-multipart>=0.0.22
+aiofiles>=25.1.0
+
+# ── Data validation & settings ──────────────────────────────────
+pydantic>=2.12.0
+pydantic-settings>=2.13.0
+
+# ── HTTP / async ────────────────────────────────────────────────
+httpx>=0.28.0
+
+# ── LLM SDKs (primary + fallback) ───────────────────────────────
+openai>=2.26.0
+google-genai>=1.66.0
+
+# ── Reliability & retry ─────────────────────────────────────────
+tenacity>=9.0.0
+PyJWT>=2.10.1
+
+# ── Financial / numerical computation ───────────────────────────
+numpy>=2.4.3
+pandas>=3.0.0
+scipy>=1.17.0          # Monte Carlo DCF, IRR, statistical distributions
+
+# ── Excel output (IB-quality models) ────────────────────────────
+openpyxl>=3.1.5
+xlrd>=2.0.1              # Legacy .xls (Excel 97-2003) support
+
+# ── Document parsing (PDF / Word upload pipeline) ───────────────
+PyMuPDF>=1.27.0
+python-docx>=1.2.0
+Pillow>=11.3.0
+pytesseract>=0.3.13
+rapidocr-onnxruntime>=1.2.3
+
+# ── LlamaIndex document ingestion pipeline ───────────────────────
+llama-index-core>=0.14.16
+llama-index-readers-file>=0.5.6     # PDF, Excel, CSV, DOCX readers
+
+# ── PDF report generation ────────────────────────────────────────
+reportlab>=4.4.0
+
+# ── Configuration ────────────────────────────────────────────────
+python-dotenv>=1.2.0
+
+# ── Database & ORM ───────────────────────────────────────────────
+sqlalchemy>=2.0.30
+alembic>=1.13.1
+psycopg2-binary>=2.9.9
+

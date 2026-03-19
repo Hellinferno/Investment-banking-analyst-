@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  # ---- PostgreSQL Database ----
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aibaa
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: aibaa
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aibaa -d aibaa"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---- FastAPI Backend ----
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://aibaa:secret@db:5432/aibaa
+      AIBAA_ENV: production
+      AIBAA_DEV_AUTH_ENABLED: "false"
+      AIBAA_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:80"
+    env_file:
+      - .env
+    volumes:
+      - ./apps/data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ---- React Frontend ----
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
