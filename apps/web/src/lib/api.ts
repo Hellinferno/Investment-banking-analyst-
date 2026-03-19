@@ -50,7 +50,7 @@ async function bootstrapDevToken(): Promise<string | null> {
     return accessToken;
 }
 
-async function ensureAuthToken(): Promise<string | null> {
+export async function ensureAuthToken(): Promise<string | null> {
     if (accessToken) {
         return accessToken;
     }
@@ -426,3 +426,5 @@ export async function deleteTask(dealId: string, taskId: string): Promise<void> 
     await ensureAuthToken();
     await api.delete(`/deals/${dealId}/tasks/${taskId}`);
 }
+
+export { api, authApi }

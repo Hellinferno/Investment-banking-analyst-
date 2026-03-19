@@ -282,4 +282,6 @@ def issue_dev_access_token(
 DbSessionDep = Annotated[Session, Depends(get_db)]
 CurrentUserDep = Annotated[UserContext, Depends(get_current_user)]
 ReviewerUserDep = Annotated[UserContext, Depends(require_reviewer_role)]
+AdminReviewerDep = Annotated[UserContext, Depends(require_roles("admin", "reviewer"))]
+AdminDep = Annotated[UserContext, Depends(require_roles("admin"))]
 DevBootstrapTokenDep = Annotated[str | None, Header(alias="X-Dev-API-Token")]

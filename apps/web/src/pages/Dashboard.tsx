@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { fetchDeals, createDeal, deleteDeal, type Deal, type DealCreatePayload } from '../lib/api'
-import { Plus, Search, Trash2, X, ChevronRight } from 'lucide-react'
+import { Plus, Search, Trash2, X, ChevronRight, Settings } from 'lucide-react'
 
 const DEAL_TYPES: { label: string; value: string }[] = [
     { label: 'M&A',          value: 'ma' },
@@ -85,9 +85,21 @@ export default function Dashboard() {
                         AI Investment Banking Analyst Agent
                     </p>
                 </div>
-                <button className="btn-primary" onClick={() => setShowModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Plus size={14} /> NEW DEAL
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Link
+                        to="/settings"
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 4,
+                            color: '#888', fontSize: 11, textDecoration: 'none',
+                            padding: '6px 12px', borderRadius: 3, border: '1px solid #333',
+                        }}
+                    >
+                        <Settings size={12} /> Settings
+                    </Link>
+                    <button className="btn-primary" onClick={() => setShowModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Plus size={14} /> NEW DEAL
+                    </button>
+                </div>
             </header>
 
             {/* Stats Strip */}

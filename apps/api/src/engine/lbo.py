@@ -301,7 +301,7 @@ class LBOEngine:
             tlb -= tlb_sweep
             tla_remaining -= tla_amort
 
-            total_debt_open = tla_remaining + tla_amort + tlb + tlb_sweep + mezz
+            total_debt_open = tla_remaining + tlb + mezz
             total_debt_close = tla_remaining + tlb + mezz
 
             schedule.append({
@@ -363,32 +363,40 @@ class LBOEngine:
         """
         Return a 2-D sensitivity matrix: IRR(%) for each (entry, exit) pair.
 
-        Used by WorkbookBuilder.write_lbo_model() to populate the sensitivity tab.
+        Shares the operating model and debt schedule across all matrix cells,
+        only recomputing entry/exit EV and IRR per cell.
         """
+        operating_model = self._project_operating_model()
+        ufcf_list = operating_model["ufcf"]
+
+        def _irr_for_multiples(em: float, xm: float) -> Optional[float]:
+            entry_ev = self.entry_ebitda * em
+            senior_debt_0 = entry_ev * (self.senior_debt_ebitda / self.entry_ev_ebitda)
+            mezz_debt_0 = entry_ev * (self.mezz_debt_ebitda / self.entry_ev_ebitda)
+            total_debt_0 = senior_debt_0 + mezz_debt_0
+            entry_equity = entry_ev - total_debt_0
+            if entry_equity <= 0:
+                return None
+            debt_schedule = self._build_debt_schedule(
+                senior_debt_0=senior_debt_0,
+                mezz_debt_0=mezz_debt_0,
+                ufcf_list=ufcf_list,
+            )
+            exit_ebitda = operating_model["ebitda"][-1]
+            exit_ev = exit_ebitda * xm
+            exit_debt = debt_schedule[-1]["closing_debt"]
+            exit_equity = max(exit_ev - exit_debt, 0.0)
+            moic = exit_equity / entry_equity
+            cf = [-entry_equity] + [0.0] * (self.projection_years - 1) + [exit_equity]
+            try:
+                return self._compute_irr(cf) * 100
+            except (ValueError, RuntimeError):
+                return None
+
         matrix: dict = {}
         for em in entry_multiples:
             row: dict = {}
             for xm in exit_multiples:
-                engine = LBOEngine(
-                    entry_ebitda=self.entry_ebitda,
-                    revenue_ltm=self.revenue_ltm,
-                    entry_ev_ebitda=em,
-                    equity_contribution_pct=self.equity_contribution_pct,
-                    senior_debt_ebitda=self.senior_debt_ebitda,
-                    mezz_debt_ebitda=self.mezz_debt_ebitda,
-                    senior_interest_rate=self.senior_interest_rate,
-                    mezz_interest_rate=self.mezz_interest_rate,
-                    projection_years=self.projection_years,
-                    exit_ev_ebitda=xm,
-                    revenue_growth_rates=self.revenue_growth_rates,
-                    ebitda_margins=self.ebitda_margins,
-                    tax_rate=self.tax_rate,
-                    capex_pct_rev=self.capex_pct_rev,
-                )
-                try:
-                    result = engine.run()
-                    row[xm] = result["irr_pct"]
-                except (ValueError, Exception):
-                    row[xm] = None
+                row[xm] = _irr_for_multiples(em, xm)
             matrix[em] = row
         return matrix

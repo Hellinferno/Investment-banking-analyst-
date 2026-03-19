@@ -1,14 +1,17 @@
+import asyncio
+import json
 import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db_models import AgentRunModel, DealModel, DocumentModel
-from dependencies import get_current_user, get_db
+from dependencies import CurrentUserDep, DbSessionDep, get_current_user, get_db
 from models import APIResponse, Meta
 from persistence import (
     get_deal_for_user,
@@ -38,16 +41,11 @@ class AgentRunPayload(BaseModel):
     agent_type: str = Field(..., min_length=1, max_length=40)
     task_name: str = Field(..., min_length=1, max_length=80)
     parameters: Dict[str, Any] = Field(default_factory=dict)
+    mnpi_consent: bool = Field(False, description="Required true if deal contains MNPI documents")
 
 
 def _sanitize_reasoning_steps(steps: list[dict]) -> list[dict]:
-    safe_steps = []
-    for step in steps or []:
-        safe_steps.append({
-            "step": step.get("step"),
-            "type": step.get("type"),
-        })
-    return safe_steps
+    return [{"step": s.get("step"), "type": s.get("type")} for s in (steps or [])]
 
 
 def _serialize_run(run_record) -> dict:
@@ -63,23 +61,19 @@ def _serialize_run(run_record) -> dict:
     }
 
 
-# ------------------------------------------------------------------
-# Agent dispatch table — maps (agent_type, task_name) to agent factory
-# ------------------------------------------------------------------
-AGENT_DISPATCH_MAP: dict[tuple[str, str], Any] = {
-    ("modeling", "dcf_model"):            lambda d, p: FinancialModelingAgent(d, p),
-    ("modeling", "lbo_model"):            lambda d, p: LBOModelingAgent(d, p),
-    ("pitchbook", "generate_pitchbook"):  lambda d, p: PitchbookAgent(d, p),
-    ("due_diligence", "dd_report"):       lambda d, p: DueDiligenceAgent(d, p),
-    ("research", "industry_brief"):       lambda d, p: ResearchAgent(d, p),
-    ("research", "buyer_universe"):       lambda d, p: ResearchAgent(d, p),
-    ("doc_drafter", "cim_draft"):         lambda d, p: DocDrafterAgent(d, p),
-    ("coordination", "extract_tasks"):    lambda d, p: CoordinationAgent(d, p),
+AGENT_DISPATCH_MAP: dict[tuple[str, str], type[BaseAgent]] = {
+    ("modeling", "dcf_model"): FinancialModelingAgent,
+    ("modeling", "lbo_model"): LBOModelingAgent,
+    ("pitchbook", "generate_pitchbook"): PitchbookAgent,
+    ("due_diligence", "dd_report"): DueDiligenceAgent,
+    ("research", "industry_brief"): ResearchAgent,
+    ("research", "buyer_universe"): ResearchAgent,
+    ("doc_drafter", "cim_draft"): DocDrafterAgent,
+    ("coordination", "extract_tasks"): CoordinationAgent,
 }
 
 
 def _execute_agent_run(agent: BaseAgent) -> None:
-    """Generic background executor for any BaseAgent subclass."""
     db = SessionLocal()
     try:
         agent.run()
@@ -91,9 +85,28 @@ def _execute_agent_run(agent: BaseAgent) -> None:
         db.close()
 
 
-def _execute_modeling_run(agent: FinancialModelingAgent) -> None:
-    """Kept for backward compatibility — delegates to generic executor."""
-    _execute_agent_run(agent)
+def _check_mnpi_consent(db: Session, deal_id: str, mnpi_consent: bool | None) -> None:
+    """Block agent runs on deals with MNPI documents unless explicit consent is given."""
+    if mnpi_consent is True:
+        return
+    mnpi_docs = (
+        db.query(DocumentModel)
+        .filter(DocumentModel.deal_id == deal_id, DocumentModel.is_mnpi.is_(True))
+        .all()
+    )
+    if not mnpi_docs:
+        return
+    for doc in mnpi_docs:
+        if not doc.mnpi_consent_given:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "MNPI_CONSENT_REQUIRED: This deal contains MNPI-flagged documents. "
+                    "Set mnpi_consent: true in the request body to proceed. "
+                    f"MNPI files: {', '.join(d.filename for d in mnpi_docs[:3])}"
+                ),
+                headers={"X-MNPI-Consent-Required": "true"},
+            )
 
 
 def _ensure_documents_ready_for_run(db: Session, deal_id: str) -> None:
@@ -105,31 +118,97 @@ def _ensure_documents_ready_for_run(db: Session, deal_id: str) -> None:
     )
     for doc in docs:
         sync_document_to_store(doc)
-
-    blocked = [doc.filename for doc in docs if doc.parse_status != "parsed"]
+    blocked = [d.filename for d in docs if d.parse_status != "parsed"]
     if blocked:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=409,
             detail=(
                 "Documents are still being parsed or failed parsing. "
-                "Wait until all parse_status values are 'parsed' before running the agent. "
-                f"Blocked files: {', '.join(blocked[:5])}"
+                "Wait until all parse_status values are 'parsed'. "
+                f"Blocked: {', '.join(blocked[:5])}"
             ),
         )
 
 
-@router.post("/{deal_id}/agents/run", response_model=APIResponse, status_code=status.HTTP_202_ACCEPTED)
+async def _sse_generator(run_id: str, last_event_id: int):
+    import redis.asyncio as redis
+
+    try:
+        r = redis.from_url("redis://localhost:6379/0", decode_responses=True)
+        await r.ping()
+    except Exception:
+        logger.warning("Redis unavailable — SSE stream will have limited events")
+        yield "event: error\ndata: {\"message\":\"Redis unavailable\"}\n\n"
+        return
+
+    pubsub = r.pubsub()
+    await pubsub.subscribe(f"run:{run_id}")
+
+    try:
+        yield "event: connected\ndata: {}\n\n"
+        seq = last_event_id
+        while True:
+            msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=5.0)
+            if msg:
+                seq += 1
+                try:
+                    event_data = json.loads(msg["data"])
+                except Exception:
+                    continue
+                event_name = event_data.get("event", "message")
+                yield f"id: {seq}\nevent: {event_name}\ndata: {json.dumps(event_data.get('data', {}))}\n\n"
+                if event_name in ("run.completed", "run.failed"):
+                    break
+            await asyncio.sleep(0.1)
+    finally:
+        await pubsub.unsubscribe(f"run:{run_id}")
+        await r.aclose()
+
+
+# ------------------------------------------------------------------
+# Routes
+# ------------------------------------------------------------------
+
+@router.get("/{deal_id}/agents/runs/{run_id}/stream")
+async def stream_agent_run(
+    deal_id: str,
+    run_id: str,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    last_event_id: int = Query(0, ge=0),
+):
+    """
+    Server-Sent Events stream for agent run progress.
+    Clients send Last-Event-ID header for replay on disconnect.
+    """
+    deal = get_deal_for_user(db, deal_id, current_user["tenant_id"])
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+
+    return StreamingResponse(
+        _sse_generator(run_id, last_event_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/{deal_id}/agents/run", response_model=APIResponse, status_code=202)
 async def dispatch_agent(
     deal_id: str,
     payload: AgentRunPayload,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
 ):
     deal = get_deal_for_user(db, deal_id, current_user["tenant_id"])
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
 
     sync_deal_to_store(deal)
+    _check_mnpi_consent(db, deal_id, payload.mnpi_consent)
 
     try:
         orchestrator = OrchestratorAgent(
@@ -167,34 +246,29 @@ async def dispatch_agent(
             run_record = store.agent_runs.get(specialized_agent.run_id)
             return APIResponse(
                 success=True,
-                data={
-                    **_serialize_run(run_record),
-                    "route": route,
-                },
+                data={**_serialize_run(run_record), "route": route},
                 meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
             )
 
         run_record = store.agent_runs.get(orch_id)
         return APIResponse(
             success=True,
-            data={
-                **_serialize_run(run_record),
-                "route": route,
-            },
+            data={**_serialize_run(run_record), "route": route},
             meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
         )
+
     except HTTPException:
         raise
     except Exception:
         logger.exception("Agent dispatch failed for deal %s", deal_id)
-        raise HTTPException(status_code=500, detail="Agent execution failed. Check server logs for details.")
+        raise HTTPException(status_code=500, detail="Agent execution failed.")
 
 
 @router.get("/{deal_id}/agents/runs", response_model=APIResponse)
 async def list_agent_runs(
     deal_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
 ):
     deal = get_deal_for_user(db, deal_id, current_user["tenant_id"])
     if not deal:
@@ -211,13 +285,13 @@ async def list_agent_runs(
         data={
             "runs": [
                 {
-                    "run_id": run.id,
-                    "agent_type": run.agent_type,
-                    "task_name": run.task_name,
-                    "status": run.status,
-                    "created_at": run.created_at.isoformat(),
+                    "run_id": r.id,
+                    "agent_type": r.agent_type,
+                    "task_name": r.task_name,
+                    "status": r.status,
+                    "created_at": r.created_at.isoformat(),
                 }
-                for run in runs
+                for r in runs
             ]
         },
         meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
@@ -228,8 +302,8 @@ async def list_agent_runs(
 async def get_agent_run(
     deal_id: str,
     run_id: str,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
 ):
     deal = get_deal_for_user(db, deal_id, current_user["tenant_id"])
     if not deal:
@@ -237,13 +311,9 @@ async def get_agent_run(
 
     run_record = store.agent_runs.get(run_id)
     if run_record and run_record.deal_id == deal_id:
-        payload = _serialize_run(run_record)
-        payload["route"] = run_record.input_payload.get("route_decision", {})
-        return APIResponse(
-            success=True,
-            data=payload,
-            meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
-        )
+        data = _serialize_run(run_record)
+        data["route"] = run_record.input_payload.get("route_decision", {})
+        return APIResponse(success=True, data=data, meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"))
 
     db_run = (
         db.query(AgentRunModel)

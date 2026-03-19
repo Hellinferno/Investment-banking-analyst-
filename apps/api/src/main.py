@@ -18,11 +18,16 @@ from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic_settings import BaseSettings
 
-import db_models  # noqa: F401 - ensure ORM models are registered
+from logging_config import configure_logging, get_logger
+configure_logging()
+logger = get_logger(__name__)
+
 from database import Base, SessionLocal, engine
 from db_models import DealModel, DocumentModel
 from persistence import hydrate_store_from_db, sync_deal_to_store, sync_document_to_store
 from routers import agents, auth, deals, documents, outputs, tasks
+from routers.admin import router as admin_router
+from routers.webhooks import router as webhooks_router
 
 # Ensure database tables are created synchronously on startup
 Base.metadata.create_all(bind=engine)
@@ -80,6 +85,30 @@ app.add_middleware(
     max_age=600,
 )
 
+from middleware import IdempotencyMiddleware, get_limiter
+app.add_middleware(IdempotencyMiddleware)
+
+_limiter = get_limiter()
+if _limiter:
+    try:
+        from slowapi import _rate_limit_exceeded_handler
+        from slowapi.errors import RateLimitExceeded
+        app.state.limiter = _limiter
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+        @app.middleware("http")
+        async def rate_limit_middleware(request: Request, call_next):
+            if request.url.path.startswith("/api/v1/health"):
+                return await call_next(request)
+            try:
+                return await _limiter._check_request(request, call_next, None)
+            except RateLimitExceeded:
+                raise
+            except Exception:
+                return await call_next(request)
+    except ImportError:
+        logger.warning("slowapi unavailable — rate limiting disabled")
+
 app.include_router(deals.router, prefix="/api/v1")
 app.include_router(documents.router, prefix="/api/v1")
 app.include_router(agents.router, prefix="/api/v1")
@@ -87,6 +116,8 @@ app.include_router(outputs.deal_router, prefix="/api/v1")
 app.include_router(outputs.output_router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(admin_router, prefix="/api/v1")
+app.include_router(webhooks_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health", tags=["Health"])

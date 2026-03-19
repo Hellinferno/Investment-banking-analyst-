@@ -50,3 +50,17 @@ sqlalchemy>=2.0.30
 alembic>=1.13.1
 psycopg2-binary>=2.9.9
 
+# ── Task Queue (ARQ + Redis) ───────────────────────────────────
+arq>=0.26.0
+redis>=5.0.0
+
+# ── RAG Pipeline ───────────────────────────────────────────────
+chromadb>=0.5.0
+sentence-transformers>=3.3.0
+scikit-learn>=1.5.0
+
+# ── Observability ──────────────────────────────────────────────
+slowapi>=0.1.9
+sentry-sdk>=2.0.0
+structlog>=24.0.0
+

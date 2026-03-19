@@ -41,8 +41,11 @@ class DocumentModel(Base):
     file_size_bytes = Column(Integer, default=0)
     storage_path = Column(String)
     doc_category = Column(String, nullable=True)
+    is_mnpi = Column(Boolean, default=False)
+    mnpi_consent_given = Column(Boolean, default=False)
     parsed_text = Column(String, nullable=True)
     parse_status = Column(String, default="pending")
+    rag_status = Column(String, default="pending")
     uploaded_at = Column(DateTime, default=_utcnow)
     
     deal = relationship("DealModel", back_populates="documents")
@@ -120,6 +123,8 @@ class TaskModel(Base):
     status = Column(String, default="todo")
     priority = Column(String, default="medium")
     owner = Column(String, default="AI Agent")
+    description = Column(String, nullable=True)
+    due_date = Column(DateTime, nullable=True)
     is_ai_generated = Column(Boolean, default=True)
     created_at = Column(DateTime, default=_utcnow)
 
@@ -133,3 +138,35 @@ class OutputReviewEventModel(Base):
     review_status = Column(String, default="draft")
     reviewer_notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
+
+
+class SecurityAuditLogModel(Base):
+    __tablename__ = "security_audit_log"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, index=True, nullable=True)
+    user_id = Column(String, index=True, nullable=True)
+    action = Column(String, nullable=False)
+    resource_type = Column(String, nullable=True)
+    resource_id = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    request_id = Column(String, nullable=True)
+    details = Column(JSON, nullable=True)
+    integrity_hash = Column(String, nullable=True)
+    prev_hash = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_utcnow, index=True)
+
+
+class WebhookModel(Base):
+    __tablename__ = "webhooks"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id = Column(String, index=True, nullable=True)
+    url = Column(String, nullable=False)
+    secret = Column(String, nullable=True)
+    event_types = Column(JSON, nullable=True)
+    is_active = Column(Boolean, default=True)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
