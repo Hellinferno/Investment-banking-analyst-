@@ -30,7 +30,7 @@ export default function Dashboard() {
     const [search, setSearch] = useState('')
     const [showModal, setShowModal] = useState(false)
     const [form, setForm] = useState<DealCreatePayload>({
-        name: '', company_name: '', deal_type: 'ma', industry: 'Technology', deal_stage: 'preliminary'
+        name: '', company_name: '', deal_type: 'ma', industry: 'Technology', deal_stage: 'preliminary', process_stage: 'nda_negotiation'
     })
     const [creating, setCreating] = useState(false)
     const [createError, setCreateError] = useState<string | null>(null)
@@ -55,7 +55,7 @@ export default function Dashboard() {
         try {
             const newDeal = await createDeal(form)
             setShowModal(false)
-            setForm({ name: '', company_name: '', deal_type: 'ma', industry: 'Technology', deal_stage: 'preliminary' })
+            setForm({ name: '', company_name: '', deal_type: 'ma', industry: 'Technology', deal_stage: 'preliminary', process_stage: 'nda_negotiation' })
             setCreateError(null)
             navigate(`/deals/${newDeal.id}`)
         } catch (err: unknown) {
@@ -372,6 +372,25 @@ export default function Dashboard() {
                                 onChange={e => setForm(p => ({ ...p, industry: e.target.value }))}
                             >
                                 {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6, fontFamily: "'JetBrains Mono', monospace" }}>
+                                Process Stage
+                            </label>
+                            <select
+                                className="input-field"
+                                value={form.process_stage || 'nda_negotiation'}
+                                onChange={e => setForm(p => ({ ...p, process_stage: e.target.value }))}
+                            >
+                                <option value="nda_negotiation">NDA Negotiation</option>
+                                <option value="nda_signed">NDA Signed</option>
+                                <option value="teaser_sent">Teaser Sent</option>
+                                <option value="cim_sent">CIM Sent</option>
+                                <option value="io_received">IO Received</option>
+                                <option value="loi_signed">LOI Signed</option>
+                                <option value="exclusivity">Exclusivity</option>
+                                <option value="definitive_agreement">Definitive Agreement</option>
                             </select>
                         </div>
                     </div>

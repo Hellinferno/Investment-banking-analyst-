@@ -23,6 +23,8 @@ def _deal_from_model(model: DealModel) -> Deal:
         deal_type=model.deal_type,
         industry=model.industry,
         deal_stage=model.deal_stage,
+        process_stage=model.process_stage,
+        stage_last_updated=model.stage_last_updated,
         notes=model.notes,
         tenant_id=model.tenant_id,
         owner_id=model.owner_id,
@@ -80,6 +82,9 @@ def _output_from_model(model: OutputModel) -> Output:
         output_category=model.output_category,
         storage_path=model.storage_path,
         review_status=model.review_status,
+        reviewed_by=model.reviewed_by,
+        reviewed_at=model.reviewed_at,
+        review_comment=model.review_comment,
         version=model.version,
         created_at=model.created_at,
     )
@@ -187,6 +192,9 @@ def persist_run_bundle(db: Session, run_id: str) -> Optional[AgentRunModel]:
         output_model.output_category = output.output_category
         output_model.storage_path = output.storage_path
         output_model.review_status = output.review_status
+        output_model.reviewed_by = output.reviewed_by
+        output_model.reviewed_at = output.reviewed_at
+        output_model.review_comment = output.review_comment
         output_model.version = output.version
 
     existing_audits = (

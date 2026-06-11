@@ -1,33 +1,8 @@
 import type { ValuationResult } from '../../lib/api'
-import { TrendingUp, BarChart3, Target, Shield, Activity } from 'lucide-react'
+import { TrendingUp, BarChart3, Target, Shield, Activity, Radio } from 'lucide-react'
+import { fmt, pct, currency, titleCase } from '../../lib/format'
 
 interface Props { data: ValuationResult }
-
-function fmt(n: number | undefined | null, decimals = 0): string {
-    if (n === undefined || n === null) return '-'
-    if (Math.abs(n) >= 1e9) return `${(n / 1e9).toFixed(1)}B`
-    if (Math.abs(n) >= 1e7) return `${(n / 1e7).toFixed(1)} Cr`
-    if (Math.abs(n) >= 1e5) return `${(n / 1e5).toFixed(1)}L`
-    return n.toLocaleString('en-IN', { maximumFractionDigits: decimals })
-}
-
-function pct(n: number | undefined | null): string {
-    if (n === undefined || n === null) return '-'
-    return `${(n * 100).toFixed(1)}%`
-}
-
-function currency(n: number | undefined | null, cur = 'Rs '): string {
-    if (n === undefined || n === null) return '-'
-    return `${cur}${fmt(n, 2)}`
-}
-
-function titleCase(label: string): string {
-    return label
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase())
-        .replace('Tgr', 'TGR')
-        .replace('Wacc', 'WACC')
-}
 
 function formatBridgeValue(key: string, value: unknown, cur: string): string {
     if (typeof value === 'boolean') return value ? 'Yes' : 'No'
@@ -59,6 +34,11 @@ export default function DCFResultsView({ data }: Props) {
         ? 'Share Price'
         : 'Equity Value'
 
+    const dataSources: string[] = data.extraction_quality?.data_sources ?? (data.extraction_metadata?.data_sources as string[] | undefined) ?? []
+    const wmRfr = dataSources.find(s => s.includes('WorldMonitor') && s.includes('risk_free_rate'))
+    const wmErp = dataSources.find(s => s.includes('WorldMonitor') && s.includes('equity_risk_premium'))
+    const hasLiveWacc = Boolean(wmRfr || wmErp)
+
     const heroMetrics = isPrivate
         ? [
             { label: 'ENTERPRISE VALUE', value: currency(h.enterprise_value, cur) },
@@ -84,6 +64,11 @@ export default function DCFResultsView({ data }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                     <TrendingUp size={16} style={{ color: '#ff6600' }} />
                     <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.04em' }}>DCF VALUATION</span>
+                    {hasLiveWacc && (
+                        <span className="badge badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Radio size={9} /> LIVE WACC
+                        </span>
+                    )}
                     <span className={`badge ${isPrivate ? 'badge-amber' : hasPerShareValue ? 'badge-emerald' : 'badge-amber'}`} style={{ marginLeft: 'auto' }}>
                         {isPrivate ? 'PRIVATE CO' : hasPerShareValue ? 'PUBLIC CO' : 'PUBLIC CO · EQ VALUE ONLY'}
                     </span>
@@ -104,6 +89,21 @@ export default function DCFResultsView({ data }: Props) {
                         </div>
                     ))}
                 </div>
+
+                {hasLiveWacc && (
+                    <div style={{
+                        marginTop: 10, padding: '8px 12px',
+                        background: 'rgba(74,222,128,0.04)', border: '1px solid rgba(74,222,128,0.12)',
+                        borderRadius: 2, fontSize: 11, color: '#6ee7a0',
+                        fontFamily: "'JetBrains Mono', monospace", display: 'flex', flexWrap: 'wrap', gap: 16,
+                    }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#4ade80', alignSelf: 'center' }}>
+                            LIVE WACC INPUTS
+                        </span>
+                        {wmRfr && <span style={{ color: '#9ee7be' }}>{wmRfr}</span>}
+                        {wmErp && <span style={{ color: '#9ee7be' }}>{wmErp}</span>}
+                    </div>
+                )}
             </div>
 
             {(data.warnings?.length || data.extraction_quality) && (

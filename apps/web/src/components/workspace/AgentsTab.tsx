@@ -10,6 +10,7 @@ import {
 import { Play, AlertCircle, ChevronRight } from 'lucide-react'
 import DCFResultsView from './DCFResultsView'
 import LBOResultsView from './LBOResultsView'
+import ThreeStatementResultsView from './ThreeStatementResultsView'
 import ExtractionAuditPanel from './ExtractionAuditPanel'
 
 interface Props { dealId: string }
@@ -48,6 +49,7 @@ const AGENT_CONFIGS: AgentConfig[] = [
             { key: 'wacc_override', label: 'WACC OVERRIDE', type: 'text', placeholder: '—', defaultValue: '' },
             { key: 'current_market_cap', label: 'CURRENT MARKET CAP', type: 'text', placeholder: 'Optional', defaultValue: '' },
             { key: 'current_share_price', label: 'CURRENT SHARE PRICE', type: 'text', placeholder: 'Optional', defaultValue: '' },
+            { key: 'web_enrichment', label: 'WEB ENRICHMENT', type: 'text', placeholder: 'true / false', defaultValue: '' },
         ],
     },
     {
@@ -81,7 +83,9 @@ const AGENT_CONFIGS: AgentConfig[] = [
         taskName: 'dd_report',
         badge: 'DD',
         description: 'Risk assessment report · Financial → Operational → Legal → Market risks + Red Flags',
-        params: [],
+        params: [
+            { key: 'web_enrichment', label: 'WEB ENRICHMENT', type: 'text', placeholder: 'true / false', defaultValue: '' },
+        ],
     },
     {
         id: 'research',
@@ -90,7 +94,9 @@ const AGENT_CONFIGS: AgentConfig[] = [
         taskName: 'industry_brief',
         badge: 'Research',
         description: 'Industry brief PDF + Buyer universe JSON · Market sizing → Competitive landscape → Buyers',
-        params: [],
+        params: [
+            { key: 'web_enrichment', label: 'WEB ENRICHMENT', type: 'text', placeholder: 'true / false', defaultValue: '' },
+        ],
     },
     {
         id: 'cim',
@@ -102,12 +108,94 @@ const AGENT_CONFIGS: AgentConfig[] = [
         params: [],
     },
     {
+        id: 'teaser',
+        label: 'Blind Teaser',
+        agentType: 'doc_drafter',
+        taskName: 'teaser_draft',
+        badge: 'PDF',
+        description: 'One-page anonymized teaser with rounded financials and no company-name disclosure',
+        params: [
+            { key: 'project_codename', label: 'PROJECT CODENAME', type: 'text', placeholder: 'Project Summit', defaultValue: '' },
+        ],
+    },
+    {
         id: 'coordination',
         label: 'Meeting Notes',
         agentType: 'coordination',
         taskName: 'extract_tasks',
         badge: 'Tasks',
         description: 'Extract action items, decisions, and follow-ups from meeting notes and documents',
+        params: [],
+    },
+    {
+        id: 'process_status',
+        label: 'Process Status',
+        agentType: 'coordination',
+        taskName: 'process_status',
+        badge: 'OPS',
+        description: 'Stage blocker report across outputs, approvals, open tasks, and buyer outreach',
+        params: [],
+    },
+    {
+        id: 'comps',
+        label: 'Comps Analysis',
+        agentType: 'comps',
+        taskName: 'comps_analysis',
+        badge: 'Comps',
+        description: 'Trading comparables + precedent transactions · Peer screen → Multiple band → Implied valuation',
+        params: [],
+    },
+    {
+        id: 'merger',
+        label: 'Merger Model',
+        agentType: 'merger_model',
+        taskName: 'accretion_dilution',
+        badge: 'M&A',
+        description: 'Accretion / dilution analysis · Offer structure → Financing mix → Pro-forma EPS bridge',
+        params: [
+            { key: 'acquirer_name', label: 'ACQUIRER NAME', type: 'text', placeholder: 'Optional', defaultValue: '' },
+            { key: 'offer_premium_pct', label: 'OFFER PREMIUM', type: 'number', placeholder: '0.25', defaultValue: 0.25 },
+            { key: 'cash_pct', label: 'CASH PORTION %', type: 'number', placeholder: '0.50', defaultValue: 0.50 },
+            { key: 'cost_of_debt', label: 'COST OF DEBT', type: 'number', placeholder: '0.09', defaultValue: 0.09 },
+            { key: 'annual_synergies', label: 'ANNUAL SYNERGIES', type: 'text', placeholder: 'Optional (INR)', defaultValue: '' },
+        ],
+    },
+    {
+        id: 'memo',
+        label: 'IC Memo',
+        agentType: 'memo_writer',
+        taskName: 'investment_memo',
+        badge: 'IC',
+        description: 'Investment Committee memorandum · Synthesizes DCF + Comps + DD into a decision-ready PDF',
+        params: [],
+    },
+    {
+        id: 'football_field',
+        label: 'Football Field',
+        agentType: 'memo_writer',
+        taskName: 'football_field',
+        badge: 'FF',
+        description: 'Valuation summary range chart · Overlays DCF, comps, precedents, and LBO value ranges',
+        params: [
+            { key: 'current_market_cap', label: 'CURRENT MARKET CAP', type: 'text', placeholder: 'Optional (INR)', defaultValue: '' },
+        ],
+    },
+    {
+        id: 'autopilot',
+        label: 'Deal Autopilot',
+        agentType: 'autopilot',
+        taskName: 'full_deal_package',
+        badge: 'AUTO',
+        description: 'Fully autonomous deal package · DCF → Comps → DD → Research → Buyers → CIM → IC Memo → Pitchbook → Football Field',
+        params: [],
+    },
+    {
+        id: 'three_statement',
+        label: '3-Statement Model',
+        agentType: 'three_statement',
+        taskName: 'three_statement_model',
+        badge: 'XLSX',
+        description: 'Linked 3-statement operating model · Income Statement → Balance Sheet → Cash Flow → Debt Schedule',
         params: [],
     },
 ]
@@ -122,6 +210,7 @@ export default function AgentsTab({ dealId }: Props) {
     const [result, setResult] = useState<AgentRunResult | null>(null)
     const [valuation, setValuation] = useState<ValuationResult | null>(null)
     const [lboResult, setLboResult] = useState<Record<string, unknown> | null>(null)
+    const [threeStatementResult, setThreeStatementResult] = useState<Record<string, unknown> | null>(null)
     const [error, setError] = useState('')
     const [activeRunId, setActiveRunId] = useState<string | null>(null)
     const [documentsReady, setDocumentsReady] = useState(true)
@@ -161,7 +250,10 @@ export default function AgentsTab({ dealId }: Props) {
         }
     }, [dealId])
 
-    useEffect(() => { refreshDocumentReadiness() }, [refreshDocumentReadiness])
+    useEffect(() => {
+        const timer = window.setTimeout(() => { void refreshDocumentReadiness() }, 0)
+        return () => window.clearTimeout(timer)
+    }, [refreshDocumentReadiness])
 
     useEffect(() => {
         if (documentsReady) return
@@ -192,6 +284,13 @@ export default function AgentsTab({ dealId }: Props) {
                 setResult(run)
                 if (run.valuation_result) setValuation(run.valuation_result)
                 setLboResult(run.lbo_result ?? null)
+                
+                // Assuming it's stashed under some key in the raw payload from the backend
+                // or returned separately. Since our agent `update_payload("three_statement_result", projections)`
+                // We should expose it from the API endpoint. We will check if it exists in `run` dynamically.
+                const typedRun = run as unknown as { three_statement_result?: Record<string, unknown> }
+                setThreeStatementResult(typedRun.three_statement_result ?? null)
+                
                 if (run.status === 'completed') {
                     stopPolling()
                 } else if (run.status === 'failed') {
@@ -224,6 +323,7 @@ export default function AgentsTab({ dealId }: Props) {
         setResult(null)
         setValuation(null)
         setLboResult(null)
+        setThreeStatementResult(null)
 
         const docsReady = await refreshDocumentReadiness()
         if (!docsReady) {
@@ -249,6 +349,8 @@ export default function AgentsTab({ dealId }: Props) {
             setResult(res)
             if (res.valuation_result) setValuation(res.valuation_result)
             setLboResult(res.lbo_result ?? null)
+            const typedRes = res as unknown as { three_statement_result?: Record<string, unknown> }
+            setThreeStatementResult(typedRes.three_statement_result ?? null)
 
             if (res.status === 'completed') {
                 setDeploying(false)
@@ -274,7 +376,8 @@ export default function AgentsTab({ dealId }: Props) {
 
     const showDCFResults = result?.status === 'completed' && selectedAgent.id === 'dcf' && valuation
     const showLBOResults = result?.status === 'completed' && selectedAgent.id === 'lbo' && lboResult
-    const showGenericSuccess = result?.status === 'completed' && !showDCFResults && !showLBOResults
+    const showThreeStatement = result?.status === 'completed' && selectedAgent.id === 'three_statement' && threeStatementResult
+    const showGenericSuccess = result?.status === 'completed' && !showDCFResults && !showLBOResults && !showThreeStatement
 
     return (
         <div className="animate-fade-in">
@@ -455,6 +558,9 @@ export default function AgentsTab({ dealId }: Props) {
 
             {/* ---- LBO Results ---- */}
             {showLBOResults && <LBOResultsView data={lboResult!} />}
+
+            {/* ---- 3-Statement Results ---- */}
+            {showThreeStatement && <ThreeStatementResultsView data={threeStatementResult} />}
         </div>
     )
 }

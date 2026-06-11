@@ -78,6 +78,8 @@ export interface Deal {
     deal_type: string;
     industry: string;
     deal_stage: string;
+    process_stage: string;
+    stage_last_updated?: string | null;
     notes?: string;
     created_at: string;
     document_count?: number;
@@ -90,6 +92,7 @@ export interface DealCreatePayload {
     deal_type: string;
     industry: string;
     deal_stage?: string;
+    process_stage?: string;
     notes?: string;
 }
 
@@ -239,7 +242,7 @@ export interface OutputInfo {
 }
 
 export interface OutputReviewPayload {
-    review_status: 'draft' | 'in_review' | 'approved' | 'rejected';
+    review_status: 'draft' | 'in_review' | 'approved' | 'rejected' | 'needs_changes';
     reviewer_notes?: string;
 }
 
@@ -360,6 +363,41 @@ export async function reviewOutput(outputId: string, payload: OutputReviewPayloa
     await api.patch(`/outputs/${outputId}/review`, payload);
 }
 
+export interface ProcessStatus {
+    current_stage: string;
+    next_stage: string;
+    ready_for_next_stage: boolean;
+    blockers: string[];
+    open_task_count: number;
+    buyer_count: number;
+    approved_output_categories: string[];
+    draft_output_categories: string[];
+}
+
+export interface BuyerOutreach {
+    id: string;
+    buyer_idx: number;
+    name: string;
+    buyer_type: string;
+    outreach_status: string;
+    payload: Record<string, unknown>;
+    updated_at?: string | null;
+}
+
+export async function fetchProcessStatus(dealId: string): Promise<ProcessStatus> {
+    const res = await api.get<APIResponse<ProcessStatus>>(`/deals/${dealId}/process-status`);
+    return res.data.data;
+}
+
+export async function fetchBuyers(dealId: string): Promise<BuyerOutreach[]> {
+    const res = await api.get<APIResponse<BuyerOutreach[]>>(`/deals/${dealId}/buyers`);
+    return res.data.data;
+}
+
+export async function updateBuyerOutreach(dealId: string, buyerIdx: number, outreachStatus: string): Promise<void> {
+    await api.patch(`/deals/${dealId}/buyers/${buyerIdx}`, { outreach_status: outreachStatus });
+}
+
 export async function downloadOutput(outputId: string, filename: string): Promise<void> {
     const res = await api.get<Blob>(`/outputs/${outputId}/download`, {
         responseType: 'blob',
@@ -421,6 +459,132 @@ export async function updateTask(dealId: string, taskId: string, update: TaskUpd
 export async function deleteTask(dealId: string, taskId: string): Promise<void> {
     await ensureAuthToken();
     await api.delete(`/deals/${dealId}/tasks/${taskId}`);
+}
+
+// ── WorldMonitor (macro/market/risk data) ──
+
+export interface WMHealthResponse {
+    connected: boolean;
+    enabled: boolean;
+}
+
+export interface WMMacroSignals {
+    available: boolean;
+    signals: {
+        timestamp: string;
+        verdict: string;
+        bullishCount: number;
+        totalCount: number;
+        unavailable: boolean;
+    } | null;
+}
+
+export interface WMFredSeries {
+    available: boolean;
+    series: {
+        seriesId: string;
+        title: string;
+        observations: Array<{ date: string; value: number }>;
+    } | null;
+}
+
+export interface WMRiskScore {
+    region: string;
+    staticBaseline: number;
+    dynamicScore: number;
+    combinedScore: number;
+    trend: string;
+    components: {
+        newsActivity: number;
+        ciiContribution: number;
+        geoConvergence: number;
+        militaryActivity: number;
+    };
+}
+
+export interface WMRiskScoresResponse {
+    available: boolean;
+    ciiScores: WMRiskScore[];
+    strategicRisks: Array<{
+        region: string;
+        level: string;
+        score: number;
+        factors: string[];
+    }>;
+}
+
+export interface WMChokepoint {
+    id: string;
+    name: string;
+    lat: number;
+    lon: number;
+    disruptionScore: number;
+    status: string;
+    activeWarnings: number;
+    congestionLevel: string;
+    affectedRoutes: string[];
+    description: string;
+}
+
+export interface WMChokepointsResponse {
+    available: boolean;
+    chokepoints: WMChokepoint[];
+}
+
+export interface WMFearGreedResponse {
+    available: boolean;
+    data: {
+        value: number;
+        classification: string;
+        previous_close: number;
+        one_week_ago: number;
+        one_month_ago: number;
+    } | null;
+}
+
+export interface WMMarketQuote {
+    symbol: string;
+    name: string;
+    price: number;
+    change: number;
+    changePercent: number;
+    marketCap: number | null;
+}
+
+export async function fetchWMHealth(): Promise<WMHealthResponse> {
+    const res = await api.get<WMHealthResponse>('/world-monitor/health');
+    return res.data;
+}
+
+export async function fetchWMMacroSignals(): Promise<WMMacroSignals> {
+    const res = await api.get<WMMacroSignals>('/world-monitor/macro-signals');
+    return res.data;
+}
+
+export async function fetchWMFredSeries(seriesId: string, limit = 120): Promise<WMFredSeries> {
+    const res = await api.get<WMFredSeries>(`/world-monitor/fred/${seriesId}`, { params: { limit } });
+    return res.data;
+}
+
+export async function fetchWMRiskScores(): Promise<WMRiskScoresResponse> {
+    const res = await api.get<WMRiskScoresResponse>('/world-monitor/risk-scores');
+    return res.data;
+}
+
+export async function fetchWMChokepoints(): Promise<WMChokepointsResponse> {
+    const res = await api.get<WMChokepointsResponse>('/world-monitor/chokepoints');
+    return res.data;
+}
+
+export async function fetchWMFearGreed(): Promise<WMFearGreedResponse> {
+    const res = await api.get<WMFearGreedResponse>('/world-monitor/fear-greed');
+    return res.data;
+}
+
+export async function fetchWMMarketQuotes(symbols?: string): Promise<{ available: boolean; quotes: WMMarketQuote[] }> {
+    const params = symbols ? { symbols } : {};
+    const res = await api.get<{ available: boolean; quotes: WMMarketQuote[] }>('/world-monitor/market-quotes', { params });
+    return res.data;
 }
 
 export { api, authApi }

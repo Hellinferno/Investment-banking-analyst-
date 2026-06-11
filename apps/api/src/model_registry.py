@@ -15,6 +15,20 @@ DEFAULT_PROVIDER = "google-genai"
 DEFAULT_MODEL_NAME = os.environ.get("AIBAA_BOOTSTRAP_EXTRACTION_MODEL", "gemini-3-flash-preview")
 DEFAULT_PROMPT_VERSION = os.environ.get("AIBAA_BOOTSTRAP_EXTRACTION_PROMPT_VERSION", "modeling-preparer-v1")
 
+# Provider → model-name validator. A model passes when its name matches the
+# provider's expected naming convention.
+SUPPORTED_PROVIDERS: dict[str, dict[str, Any]] = {
+    "google-genai": {
+        "model_check": lambda name: name.startswith("gemini-"),
+        "model_rule": "Model name must be a Gemini family identifier (gemini-*).",
+    },
+    "nvidia-nim": {
+        # NIM catalog ids are namespaced, e.g. moonshotai/kimi-k2.6, meta/llama-3.3-70b-instruct
+        "model_check": lambda name: bool(name) and "/" in name,
+        "model_rule": "NVIDIA NIM model name must be a namespaced catalog id (e.g. moonshotai/kimi-k2.6).",
+    },
+}
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -167,18 +181,27 @@ def validate_registry_candidate(
     normalized_model = str(model_name or "").strip()
     normalized_prompt = str(prompt_version or "").strip()
 
+    provider_spec = SUPPORTED_PROVIDERS.get(normalized_provider)
     add_check(
         "provider_supported",
-        normalized_provider == DEFAULT_PROVIDER,
-        "Phase 0/1 registry only supports google-genai backed Gemini extraction.",
+        provider_spec is not None,
+        f"Registry supports the following providers: {', '.join(sorted(SUPPORTED_PROVIDERS))}.",
         normalized_provider,
     )
-    add_check(
-        "gemini_model_name",
-        normalized_model.startswith("gemini-"),
-        "Model name must be a Gemini family identifier.",
-        normalized_model,
-    )
+    if provider_spec is not None:
+        add_check(
+            "model_name_format",
+            bool(provider_spec["model_check"](normalized_model)),
+            provider_spec["model_rule"],
+            normalized_model,
+        )
+    else:
+        add_check(
+            "model_name_format",
+            False,
+            "Model name cannot be validated for an unsupported provider.",
+            normalized_model,
+        )
     add_check(
         "prompt_version_present",
         bool(normalized_prompt),

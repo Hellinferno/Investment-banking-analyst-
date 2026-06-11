@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { fetchCurrentUser, api, type CurrentUserInfo } from '../../lib/api';
 
@@ -22,20 +23,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     const token = localStorage.getItem('aibaa_token');
     if (!token) {
-      setIsLoading(false);
+      queueMicrotask(() => { if (isMounted) setIsLoading(false); });
       return;
     }
     fetchCurrentUser(true)
-      .then((u) => setUser(u))
+      .then((u) => { if (isMounted) setUser(u); })
       .catch(() => {
         localStorage.removeItem('aibaa_token');
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => { if (isMounted) setIsLoading(false); });
+    
+    return () => { isMounted = false; };
   }, []);
 
-  const login = useCallback(async (_token: string) => {
+  const login = useCallback(async (token: string) => {
+    localStorage.setItem('aibaa_token', token);
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     const u = await fetchCurrentUser(true);
     setUser(u);
   }, []);

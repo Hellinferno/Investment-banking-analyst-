@@ -20,6 +20,9 @@ class Output:
     output_category: str = ""
     storage_path: str = ""
     review_status: str = "draft"
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    review_comment: Optional[str] = None
     version: int = 1
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = field(default_factory=_utcnow)
@@ -95,6 +98,8 @@ class Deal:
     deal_type: str = "other"
     industry: str = ""
     deal_stage: str = "preliminary"
+    process_stage: str = "nda_negotiation"
+    stage_last_updated: datetime = field(default_factory=_utcnow)
     notes: Optional[str] = None
     tenant_id: Optional[str] = None
     owner_id: Optional[str] = None
@@ -205,4 +210,3 @@ class MemoryStore:
         return [doc for doc in self.documents.values() if getattr(doc, "deal_id", None) == deal_id]
 
 store = MemoryStore()
-

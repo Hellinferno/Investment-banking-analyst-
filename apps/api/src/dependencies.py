@@ -41,13 +41,22 @@ class AuthSettings(BaseSettings):
     jwt_expire_minutes: int = 480
     jwt_jwks_url: str | None = None
     session_cookie_name: str = "aibaa_session"
-    session_cookie_secure: bool = False
+    # Secure by default: cookies only travel over TLS. Local HTTP dev must
+    # explicitly opt out with AIBAA_SESSION_COOKIE_SECURE=false.
+    session_cookie_secure: bool = True
     session_cookie_samesite: str = "lax"
     demo_password: str = "AIBAA-demo-2026!"
     demo_tenant_id: str = "org_demo"
-    demo_password_hint: str = "AIBAA-demo-2026!"
 
     model_config = {"env_prefix": "AIBAA_"}
+
+    @property
+    def default_tenant_id(self) -> str:
+        return self.demo_tenant_id
+
+    @property
+    def default_user_id(self) -> str:
+        return "usr_demo_analyst"
 
 
 @lru_cache

@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+import re
 import uuid
 from typing import Any, Dict, Optional
 
@@ -7,6 +9,48 @@ from database import SessionLocal, ensure_database_ready
 from db_models import AgentRunModel
 
 logger = logging.getLogger(__name__)
+
+
+def parse_llm_json(raw: str, required_keys: tuple[str, ...] = ()) -> dict | None:
+    """Extract a JSON object from an LLM response and validate its shape.
+
+    Returns the parsed dict only when it is a JSON object AND contains at least
+    one of ``required_keys`` (when provided). A valid-JSON-but-wrong-schema
+    response — e.g. ``{"error": "context too long"}`` — returns None so callers
+    can fail or retry instead of silently completing with empty output.
+    """
+    if not raw:
+        return None
+    match = re.search(r"\{[\s\S]*\}", raw.strip())
+    if not match:
+        return None
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if required_keys and not any(k in data for k in required_keys):
+        logger.warning(
+            "LLM JSON parsed but missing all required keys %s — treating as invalid.",
+            required_keys,
+        )
+        return None
+    return data
+
+
+def _sanitize_agent_error(message: str) -> str:
+    """Redact secrets and absolute paths from an agent error before it is
+    persisted to the DB or returned via the API."""
+    msg = str(message)
+    # Long token/key-like sequences (40+ chars)
+    msg = re.sub(r"[A-Za-z0-9_\-]{40,}", "[REDACTED]", msg)
+    # Bearer tokens / api-key query params
+    msg = re.sub(r"(?i)(bearer\s+|api[_-]?key=)[^\s&]+", r"\1[REDACTED]", msg)
+    # Windows and Unix absolute paths
+    msg = re.sub(r"[A-Za-z]:[\\/][^\s]+", "[PATH]", msg)
+    msg = re.sub(r"(?<![\w])/(?:home|app|srv|var|etc|root|Users)/[\w./\-]+", "[PATH]", msg)
+    return msg[:500]
 
 
 class BaseAgent:
@@ -138,9 +182,13 @@ class BaseAgent:
         self._sync_to_db()
 
     def fail(self, error_message: str):
+        # Sanitize before persisting/returning: raw exception text from LLM/HTTP
+        # SDKs can carry API-key fragments or filesystem paths, and error_message
+        # is surfaced via the API and stored in the DB.
+        safe_message = _sanitize_agent_error(error_message)
         self.run_record.status = "failed"
-        self.run_record.error_message = error_message
-        self._log_step("error", error_message)
+        self.run_record.error_message = safe_message
+        self._log_step("error", safe_message)
         self._sync_to_db()
 
     def _extract_document_context(self) -> str:

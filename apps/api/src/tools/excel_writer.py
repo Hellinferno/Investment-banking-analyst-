@@ -36,6 +36,17 @@ class WorkbookBuilder:
         self.border_bottom = Border(bottom=thin_border)
         self.border_top = Border(top=thin_border)
         
+    def _assert_within_output_dir(self, filepath: str) -> None:
+        """True path-containment check (not a prefix-string match).
+
+        ``startswith`` would let a sibling dir like ``outputs_evil`` pass; this
+        resolves both paths and verifies real ancestry.
+        """
+        base = Path(self.output_dir).resolve()
+        target = Path(filepath).resolve()
+        if not (target == base or base in target.parents):
+            raise ValueError(f"Output path escapes output_dir: {filepath}")
+
     def _apply_header_style(self, cell):
         cell.font = self.header_font
         cell.fill = self.header_fill
@@ -390,8 +401,7 @@ class WorkbookBuilder:
         filename = f"dcf_model_{safe_name}.xlsx"
         filepath = os.path.join(self.output_dir, filename)
         # Guard: ensure path stays within output_dir
-        if not os.path.abspath(filepath).startswith(self.output_dir):
-            raise ValueError(f"Output path escapes output_dir: {filepath}")
+        self._assert_within_output_dir(filepath)
         logger.info("[ExcelWriter] Saving DCF workbook to %s", filepath)
 
         wb.save(filepath)
@@ -517,8 +527,7 @@ class WorkbookBuilder:
         safe_name = _UNSAFE_CHARS.sub("_", deal_name.strip().lower().replace(" ", "_"))[:60]
         filename = f"dd_checklist_{safe_name}.xlsx"
         filepath = os.path.join(self.output_dir, filename)
-        if not os.path.abspath(filepath).startswith(self.output_dir):
-            raise ValueError(f"Output path escapes output_dir: {filepath}")
+        self._assert_within_output_dir(filepath)
         logger.info("[ExcelWriter] Saving DD checklist to %s", filepath)
         wb.save(filepath)
         return filepath
@@ -769,8 +778,341 @@ class WorkbookBuilder:
         safe_name = _UNSAFE_CHARS.sub("_", deal_name.strip().lower().replace(" ", "_"))[:60]
         filename = f"lbo_model_{safe_name}.xlsx"
         filepath = os.path.join(self.output_dir, filename)
-        if not os.path.abspath(filepath).startswith(self.output_dir):
-            raise ValueError(f"Output path escapes output_dir: {filepath}")
+        self._assert_within_output_dir(filepath)
         logger.info("[ExcelWriter] Saving LBO workbook to %s", filepath)
         wb.save(filepath)
         return filepath
+
+    def _save_workbook(self, wb, deal_name: str, prefix: str) -> str:
+        safe_name = _UNSAFE_CHARS.sub("_", deal_name.strip().lower().replace(" ", "_"))[:60]
+        filename = f"{prefix}_{safe_name}.xlsx"
+        filepath = os.path.join(self.output_dir, filename)
+        self._assert_within_output_dir(filepath)
+        logger.info("[ExcelWriter] Saving %s workbook to %s", prefix, filepath)
+        wb.save(filepath)
+        return filepath
+
+    def write_comps_analysis(self, deal_name: str, comps_data: dict) -> str:
+        """
+        Generate a Comparable Companies Analysis workbook.
+
+        Tabs:
+          1. Trading Comps — peer multiples table + recommended band
+          2. Precedent Transactions — transaction comps table
+          3. Implied Valuation — deterministic EV/EBITDA scenarios
+        """
+        wb = openpyxl.Workbook()
+        bold_font = Font(name="Arial", bold=True)
+        wrap_align = Alignment(wrap_text=True, vertical="top")
+
+        # ---- TAB 1: Trading Comps ----
+        ws = wb.active
+        ws.title = "Trading Comps"
+        ws["A1"] = f"COMPARABLE COMPANIES ANALYSIS — {deal_name.upper()}"
+        ws["A1"].font = Font(name="Arial", bold=True, size=12, color="FFFFFF")
+        ws["A1"].fill = self.header_fill
+        ws.merge_cells("A1:G1")
+
+        headers = ["Company", "Ticker", "Country", "EV/EBITDA", "EV/Revenue", "P/E", "Source", "Rationale"]
+        for col, h in enumerate(headers, start=1):
+            cell = ws.cell(row=3, column=col, value=h)
+            self._apply_header_style(cell)
+
+        live_font = Font(name="Arial", bold=True, color="008000")   # green = live market data
+        est_font = Font(name="Arial", italic=True, color="808080")  # grey = analyst estimate
+
+        row = 4
+        for peer in comps_data.get("trading_comps", []):
+            ws.cell(row=row, column=1, value=peer.get("company")).font = bold_font
+            ws.cell(row=row, column=2, value=peer.get("ticker"))
+            ws.cell(row=row, column=3, value=peer.get("country"))
+            for col, key in ((4, "ev_ebitda"), (5, "ev_revenue"), (6, "pe")):
+                c = ws.cell(row=row, column=col, value=peer.get(key))
+                c.number_format = "0.0x"
+                c.font = self.calc_font
+            source = (peer.get("source") or "estimate").upper()
+            sc = ws.cell(row=row, column=7, value=source)
+            sc.font = live_font if source == "LIVE" else est_font
+            rc = ws.cell(row=row, column=8, value=peer.get("rationale"))
+            rc.alignment = wrap_align
+            row += 1
+
+        band = comps_data.get("recommended_multiple_band", {}) or {}
+        row += 1
+        ws.cell(row=row, column=1, value="RECOMMENDED BAND").font = bold_font
+        ws.cell(row=row, column=4, value=band.get("bear")).number_format = "0.0x"
+        ws.cell(row=row, column=5, value=band.get("base")).number_format = "0.0x"
+        ws.cell(row=row, column=6, value=band.get("bull")).number_format = "0.0x"
+        ws.cell(row=row + 1, column=1, value=band.get("justification", "")).alignment = wrap_align
+        ws.merge_cells(start_row=row + 1, start_column=1, end_row=row + 1, end_column=7)
+
+        ws.column_dimensions["A"].width = 28
+        for col in ("B", "C", "D", "E", "F"):
+            ws.column_dimensions[col].width = 12
+        ws.column_dimensions["G"].width = 50
+
+        # ---- TAB 2: Precedent Transactions ----
+        ws_tx = wb.create_sheet("Precedent Transactions")
+        headers = ["Target", "Acquirer", "Year", "EV/EBITDA", "EV/Revenue", "Deal Rationale"]
+        for col, h in enumerate(headers, start=1):
+            cell = ws_tx.cell(row=1, column=col, value=h)
+            self._apply_header_style(cell)
+        row = 2
+        for tx in comps_data.get("precedent_transactions", []):
+            ws_tx.cell(row=row, column=1, value=tx.get("target")).font = bold_font
+            ws_tx.cell(row=row, column=2, value=tx.get("acquirer"))
+            ws_tx.cell(row=row, column=3, value=tx.get("year"))
+            for col, key in ((4, "ev_ebitda"), (5, "ev_revenue")):
+                c = ws_tx.cell(row=row, column=col, value=tx.get(key))
+                c.number_format = "0.0x"
+                c.font = self.calc_font
+            ws_tx.cell(row=row, column=6, value=tx.get("deal_rationale")).alignment = wrap_align
+            row += 1
+        ws_tx.column_dimensions["A"].width = 26
+        ws_tx.column_dimensions["B"].width = 26
+        for col in ("C", "D", "E"):
+            ws_tx.column_dimensions[col].width = 12
+        ws_tx.column_dimensions["F"].width = 50
+
+        # ---- TAB 3: Implied Valuation (deterministic engine snapshot) ----
+        ws_val = wb.create_sheet("Implied Valuation")
+        snapshot = comps_data.get("deterministic_snapshot", {}) or {}
+        ws_val["A1"] = "IMPLIED VALUATION — EV/EBITDA SCENARIOS"
+        ws_val["A1"].font = Font(name="Arial", bold=True, size=12, color="FFFFFF")
+        ws_val["A1"].fill = self.header_fill
+        ws_val.merge_cells("A1:E1")
+        headers = ["Scenario", "EV/EBITDA", "Enterprise Value", "Equity Value", "Implied Share Price"]
+        for col, h in enumerate(headers, start=1):
+            cell = ws_val.cell(row=3, column=col, value=h)
+            self._apply_header_style(cell)
+        row = 4
+        for scenario_name in ("bear", "base", "bull"):
+            point = (snapshot.get("scenarios") or {}).get(scenario_name, {})
+            ws_val.cell(row=row, column=1, value=scenario_name.upper()).font = bold_font
+            ws_val.cell(row=row, column=2, value=point.get("ev_ebitda")).number_format = "0.0x"
+            for col, key in ((3, "enterprise_value"), (4, "equity_value"), (5, "implied_share_price")):
+                c = ws_val.cell(row=row, column=col, value=point.get(key))
+                c.number_format = "#,##0.00"
+                c.font = self.calc_font
+            row += 1
+        ws_val.cell(row=row + 1, column=1, value=f"Multiples source: {snapshot.get('multiples_source', 'n/a')}")
+        for col in range(1, 6):
+            ws_val.column_dimensions[get_column_letter(col)].width = 20
+
+        return self._save_workbook(wb, deal_name, "comps_analysis")
+
+    def write_three_statement_model(self, deal_name: str, three_statement_result: dict, currency: str = "USD") -> str:
+        """Generate a multi-tab linked 3-statement workbook."""
+        wb = openpyxl.Workbook()
+        fy_labels = three_statement_result.get("fy_labels", [])
+        assumptions = three_statement_result.get("assumptions", {}) or {}
+        curr_fmt = "#,##0.00"
+        pct_fmt = "0.0%"
+        bold_font = Font(name="Arial", bold=True)
+
+        def setup_sheet(ws, title: str):
+            ws["A1"] = title
+            ws["A1"].font = Font(name="Arial", bold=True, size=12, color="FFFFFF")
+            ws["A1"].fill = self.header_fill
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(2, len(fy_labels) + 1))
+            ws.cell(row=3, column=1, value="Metric")
+            self._apply_header_style(ws.cell(row=3, column=1))
+            for idx, label in enumerate(fy_labels, start=2):
+                ws.cell(row=3, column=idx, value=label)
+                self._apply_header_style(ws.cell(row=3, column=idx))
+            ws.column_dimensions["A"].width = 34
+            for idx in range(2, len(fy_labels) + 2):
+                ws.column_dimensions[get_column_letter(idx)].width = 16
+
+        def write_rows(ws, data: dict, rows: list[tuple[str, str]], start_row: int = 4) -> dict[str, int]:
+            row_map: dict[str, int] = {}
+            row = start_row
+            for key, label in rows:
+                row_map[key] = row
+                ws.cell(row=row, column=1, value=label)
+                if key.startswith("total") or key in {"ebitda", "ebit", "net_income", "cfo", "ending_cash", "ufcf", "balance_check"}:
+                    ws.cell(row=row, column=1).font = bold_font
+                for col, value in enumerate(data.get(key, []), start=2):
+                    cell = ws.cell(row=row, column=col, value=value)
+                    cell.number_format = curr_fmt
+                    cell.font = self.calc_font
+                row += 1
+            return row_map
+
+        ws_assump = wb.active
+        ws_assump.title = "Assumptions"
+        ws_assump["A1"] = f"3-STATEMENT MODEL - {deal_name.upper()} ({currency})"
+        ws_assump["A1"].font = Font(name="Arial", bold=True, size=12, color="FFFFFF")
+        ws_assump["A1"].fill = self.header_fill
+        ws_assump.merge_cells("A1:C1")
+        ws_assump["A3"] = "Assumption"
+        ws_assump["B3"] = "Value"
+        self._apply_header_style(ws_assump["A3"])
+        self._apply_header_style(ws_assump["B3"])
+        assumption_rows = [
+            ("Revenue CAGR", assumptions.get("revenue_cagr", 0.08), pct_fmt),
+            ("EBITDA Margin", assumptions.get("avg_ebitda_margin", 0.15), pct_fmt),
+            ("Tax Rate", assumptions.get("tax_rate", 0.25), pct_fmt),
+            ("Capex % Revenue", assumptions.get("cap_ex_percent_rev", 0.04), pct_fmt),
+            ("D&A % Revenue", assumptions.get("da_percent_rev", 0.05), pct_fmt),
+            ("Terminal Growth", 0.03, pct_fmt),
+            ("Discount Rate", 0.12, pct_fmt),
+        ]
+        for row, (label, value, fmt) in enumerate(assumption_rows, start=4):
+            ws_assump.cell(row=row, column=1, value=label)
+            cell = ws_assump.cell(row=row, column=2, value=value)
+            cell.number_format = fmt
+            cell.font = self.hardcode_font
+        ws_assump.column_dimensions["A"].width = 28
+        ws_assump.column_dimensions["B"].width = 16
+
+        ws_is = wb.create_sheet("IS")
+        setup_sheet(ws_is, "INCOME STATEMENT")
+        write_rows(ws_is, three_statement_result.get("income_statement", {}), [
+            ("revenue", "Revenue"),
+            ("cogs", "Cost of Goods Sold"),
+            ("gross_profit", "Gross Profit"),
+            ("sgga", "SG&A"),
+            ("ebitda", "EBITDA"),
+            ("da", "Depreciation & Amortization"),
+            ("ebit", "EBIT"),
+            ("interest_expense", "Interest Expense"),
+            ("ebt", "Earnings Before Tax"),
+            ("taxes", "Taxes"),
+            ("net_income", "Net Income"),
+        ])
+
+        ws_bs = wb.create_sheet("BS")
+        setup_sheet(ws_bs, "BALANCE SHEET")
+        write_rows(ws_bs, three_statement_result.get("balance_sheet", {}), [
+            ("cash", "Cash & Equivalents"),
+            ("receivables", "Accounts Receivable"),
+            ("inventory", "Inventory"),
+            ("ppne", "PP&E"),
+            ("total_assets", "Total Assets"),
+            ("payables", "Accounts Payable"),
+            ("revolver", "Revolver"),
+            ("term_loan", "Term Loan"),
+            ("total_liabilities", "Total Liabilities"),
+            ("common_stock", "Common Stock"),
+            ("retained_earnings", "Retained Earnings"),
+            ("total_equity", "Total Equity"),
+            ("total_liab_and_equity", "Total Liabilities & Equity"),
+            ("balance_check", "Balance Check"),
+        ])
+
+        ws_cf = wb.create_sheet("CF")
+        setup_sheet(ws_cf, "CASH FLOW STATEMENT")
+        cf_rows = write_rows(ws_cf, three_statement_result.get("cash_flow_statement", {}), [
+            ("net_income", "Net Income"),
+            ("da", "D&A"),
+            ("change_in_nwc", "Change in NWC"),
+            ("cfo", "Cash Flow from Operations"),
+            ("capex", "Capital Expenditures"),
+            ("cfi", "Cash Flow from Investing"),
+            ("term_loan_amort", "Term Loan Amortization"),
+            ("revolver_draw_repay", "Revolver Draw/(Repay)"),
+            ("cff", "Cash Flow from Financing"),
+            ("net_change_in_cash", "Net Change in Cash"),
+            ("ending_cash", "Ending Cash"),
+            ("ufcf", "Unlevered Free Cash Flow"),
+        ])
+
+        ws_debt = wb.create_sheet("Debt Schedule")
+        setup_sheet(ws_debt, "DEBT SCHEDULE")
+        write_rows(ws_debt, three_statement_result.get("debt_schedule", {}), [
+            ("term_loan_opening", "Term Loan Opening"),
+            ("term_loan_amortization", "Mandatory Amortization"),
+            ("term_loan_ending", "Term Loan Ending"),
+            ("revolver_opening", "Revolver Opening"),
+            ("revolver_draw", "Revolver Draw"),
+            ("revolver_repay", "Revolver Repay"),
+            ("revolver_ending", "Revolver Ending"),
+            ("interest_expense", "Interest Expense"),
+        ])
+
+        ws_dcf = wb.create_sheet("DCF")
+        setup_sheet(ws_dcf, "DCF FROM 3-STATEMENT UFCF")
+        ws_dcf.cell(row=4, column=1, value="UFCF")
+        ws_dcf.cell(row=5, column=1, value="PV of UFCF")
+        ws_dcf.cell(row=6, column=1, value="Terminal Value")
+        ws_dcf.cell(row=7, column=1, value="PV of Terminal Value")
+        ws_dcf.cell(row=8, column=1, value="Enterprise Value")
+        for row in range(4, 9):
+            ws_dcf.cell(row=row, column=1).font = bold_font
+        ufcf_row = cf_rows["ufcf"]
+        for idx, _label in enumerate(fy_labels, start=2):
+            col_letter = get_column_letter(idx)
+            ws_dcf.cell(row=4, column=idx, value=f"='CF'!{col_letter}{ufcf_row}")
+            ws_dcf.cell(row=5, column=idx, value=f"={col_letter}4/((1+Assumptions!$B$10)^{idx - 1})")
+            ws_dcf.cell(row=5, column=idx).number_format = curr_fmt
+        if fy_labels:
+            last_col = get_column_letter(len(fy_labels) + 1)
+            ws_dcf[f"{last_col}6"] = f"={last_col}4*(1+Assumptions!$B$9)/(Assumptions!$B$10-Assumptions!$B$9)"
+            ws_dcf[f"{last_col}7"] = f"={last_col}6/((1+Assumptions!$B$10)^{len(fy_labels)})"
+            ws_dcf["B8"] = f"=SUM(B5:{last_col}5)+{last_col}7"
+            ws_dcf["B8"].number_format = curr_fmt
+
+        return self._save_workbook(wb, deal_name, "three_statement_model")
+
+    def write_merger_model(self, deal_name: str, merger_result: dict) -> str:
+        """
+        Generate a merger consequence (accretion/dilution) workbook.
+
+        Tabs:
+          1. Assumptions — deal inputs and financing mix
+          2. Accretion-Dilution — pro-forma EPS bridge by year
+        """
+        wb = openpyxl.Workbook()
+        bold_font = Font(name="Arial", bold=True)
+
+        ws = wb.active
+        ws.title = "Assumptions"
+        ws["A1"] = f"MERGER MODEL — {deal_name.upper()}"
+        ws["A1"].font = Font(name="Arial", bold=True, size=12, color="FFFFFF")
+        ws["A1"].fill = self.header_fill
+        ws.merge_cells("A1:C1")
+
+        row = 3
+        for section in ("target", "acquirer", "assumptions"):
+            ws.cell(row=row, column=1, value=section.upper()).font = bold_font
+            row += 1
+            for key, value in (merger_result.get(section) or {}).items():
+                ws.cell(row=row, column=1, value=key.replace("_", " ").title())
+                c = ws.cell(row=row, column=2, value=str(value) if isinstance(value, list) else value)
+                if isinstance(value, (int, float)) and abs(value or 0) > 1000:
+                    c.number_format = "#,##0"
+                row += 1
+            row += 1
+        ws.column_dimensions["A"].width = 32
+        ws.column_dimensions["B"].width = 24
+
+        ws_ad = wb.create_sheet("Accretion-Dilution")
+        analysis = merger_result.get("accretion_dilution", {}) or {}
+        headers = ["Metric"] + [f"Year {i + 1}" for i in range(len(analysis.get("proforma_eps", []) or [1]))]
+        for col, h in enumerate(headers, start=1):
+            cell = ws_ad.cell(row=1, column=col, value=h)
+            self._apply_header_style(cell)
+
+        rows = [
+            ("Standalone Acquirer EPS", analysis.get("standalone_eps", [])),
+            ("Pro-Forma EPS", analysis.get("proforma_eps", [])),
+            ("Accretion / (Dilution) %", analysis.get("accretion_dilution_pct", [])),
+        ]
+        r = 2
+        for label, values in rows:
+            ws_ad.cell(row=r, column=1, value=label).font = bold_font
+            for i, v in enumerate(values or []):
+                c = ws_ad.cell(row=r, column=2 + i, value=v)
+                c.font = self.calc_font
+                c.number_format = "0.00%" if "%" in label else "#,##0.00"
+            r += 1
+
+        verdict = analysis.get("verdict", "")
+        if verdict:
+            ws_ad.cell(row=r + 1, column=1, value=f"Verdict: {verdict}").font = bold_font
+        ws_ad.column_dimensions["A"].width = 30
+        for col in range(2, len(headers) + 1):
+            ws_ad.column_dimensions[get_column_letter(col)].width = 14
+
+        return self._save_workbook(wb, deal_name, "merger_model")

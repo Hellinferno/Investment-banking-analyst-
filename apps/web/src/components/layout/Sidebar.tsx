@@ -7,6 +7,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   TrendingUp,
+  ListChecks,
 } from 'lucide-react';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/review-queue', icon: ListChecks, label: 'Review Queue' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 

@@ -1,8 +1,11 @@
+import hashlib
 import json
 import logging
 import os
 import re
+import time
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from google import genai
@@ -13,6 +16,53 @@ from database import SessionLocal
 from model_registry import DEFAULT_MODEL_NAME, DEFAULT_PROMPT_VERSION, RuntimeModelConfig, get_active_runtime_config
 
 logger = logging.getLogger(__name__)
+
+# ── In-process LLM response cache ─────────────────────────────────────────────
+# Avoids redundant API calls when the same (system_prompt, user_prompt) pair is
+# submitted twice — e.g. a retry after a transient UI error on the same document.
+# Controlled by GEMINI_RESPONSE_CACHE_ENABLED env var (default: "true").
+# TTL defaults to 1 hour; set GEMINI_RESPONSE_CACHE_TTL_SECONDS to override.
+
+from collections import OrderedDict
+from threading import Lock
+
+# Bounded, thread-safe LRU+TTL cache. Background agent threads read/write this
+# concurrently, so all access is guarded by a lock; the size cap prevents
+# unbounded growth across many deals.
+_LLM_RESPONSE_CACHE: "OrderedDict[str, tuple[float, str]]" = OrderedDict()
+_LLM_CACHE_LOCK = Lock()
+_LLM_CACHE_TTL: int = int(os.environ.get("GEMINI_RESPONSE_CACHE_TTL_SECONDS", "3600"))
+_LLM_CACHE_MAXSIZE: int = int(os.environ.get("GEMINI_RESPONSE_CACHE_MAXSIZE", "512"))
+
+
+def _cache_enabled() -> bool:
+    return os.environ.get("GEMINI_RESPONSE_CACHE_ENABLED", "true").lower() == "true"
+
+
+def _cache_key(system_prompt: str, user_prompt: str, provider_model: str = "") -> str:
+    raw = f"{provider_model}\x00{system_prompt}\x00{user_prompt}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _cache_get(key: str) -> str | None:
+    with _LLM_CACHE_LOCK:
+        entry = _LLM_RESPONSE_CACHE.get(key)
+        if entry is None:
+            return None
+        ts, text = entry
+        if time.monotonic() - ts > _LLM_CACHE_TTL:
+            _LLM_RESPONSE_CACHE.pop(key, None)
+            return None
+        _LLM_RESPONSE_CACHE.move_to_end(key)  # mark as recently used
+        return text
+
+
+def _cache_put(key: str, text: str) -> None:
+    with _LLM_CACHE_LOCK:
+        _LLM_RESPONSE_CACHE[key] = (time.monotonic(), text)
+        _LLM_RESPONSE_CACHE.move_to_end(key)
+        while len(_LLM_RESPONSE_CACHE) > _LLM_CACHE_MAXSIZE:
+            _LLM_RESPONSE_CACHE.popitem(last=False)  # evict least-recently-used
 
 
 def _load_env_files() -> None:
@@ -31,7 +81,21 @@ _load_env_files()
 
 # Check if API keys are available
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_TIMEOUT_SECONDS = float(os.environ.get("GEMINI_TIMEOUT_SECONDS", "120"))
 _gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
+# ── NVIDIA NIM (OpenAI-compatible) provider ───────────────────────────────────
+# Secondary real-LLM provider. Key is read from the environment only and is
+# never logged or echoed in error messages (see _sanitize_error).
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
+NVIDIA_NIM_BASE_URL = os.environ.get("NVIDIA_NIM_BASE_URL", "https://integrate.api.nvidia.com/v1")
+NVIDIA_NIM_MODEL = os.environ.get("NVIDIA_NIM_MODEL", "moonshotai/kimi-k2.6")
+NVIDIA_TIMEOUT_SECONDS = float(os.environ.get("NVIDIA_TIMEOUT_SECONDS", "120"))
+NVIDIA_MAX_TOKENS = int(os.environ.get("NVIDIA_MAX_TOKENS", "16384"))
+
+
+def _nvidia_fallback_enabled() -> bool:
+    return os.environ.get("NVIDIA_FALLBACK_ENABLED", "true").lower() == "true" and bool(NVIDIA_API_KEY)
 
 
 def _sanitize_error(err: Exception) -> str:
@@ -65,6 +129,19 @@ def resolve_llm_runtime_config(
     if purpose:
         with SessionLocal() as db:
             return get_active_runtime_config(db, tenant_id=tenant_id, purpose=purpose)
+
+    # When only the NVIDIA key is configured, NIM becomes the default provider
+    # so the platform stays fully functional without a Gemini key.
+    if not GEMINI_API_KEY and NVIDIA_API_KEY:
+        return RuntimeModelConfig(
+            registry_id=None,
+            tenant_id=tenant_id,
+            purpose=purpose or "default",
+            provider="nvidia-nim",
+            model_name=NVIDIA_NIM_MODEL,
+            prompt_version=DEFAULT_PROMPT_VERSION,
+            config={},
+        )
 
     return RuntimeModelConfig(
         registry_id=None,
@@ -112,19 +189,111 @@ def _call_gemini_with_config(
 ) -> str:
     """Call Gemini with automatic retry on transient errors (up to 3 attempts)."""
     if runtime_config.provider != "google-genai":
-        raise RuntimeError(f"Unsupported LLM provider for Phase 0/1: {runtime_config.provider}")
+        raise RuntimeError(f"_call_gemini_with_config received non-Gemini provider: {runtime_config.provider}")
     if not GEMINI_API_KEY or _gemini_client is None:
         raise RuntimeError("GEMINI_API_KEY is required for Gemini extraction and validation.")
 
+    # Bound the call so a stalled request cannot pin a worker thread forever.
+    # google-genai expects the HTTP timeout in milliseconds.
     response = _gemini_client.models.generate_content(
         model=runtime_config.model_name,
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
             temperature=0.0,
+            http_options=types.HttpOptions(timeout=int(GEMINI_TIMEOUT_SECONDS * 1000)),
         ),
     )
     return response.text
+
+
+@retry(
+    retry=retry_if_exception(_is_transient_error),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(3),
+    reraise=True,
+)
+def _call_nvidia_nim(
+    system_prompt: str,
+    user_prompt: str,
+    model_name: str | None = None,
+) -> str:
+    """Call an NVIDIA NIM hosted model (OpenAI-compatible chat completions).
+
+    Defaults to moonshotai/kimi-k2.6. Temperature is pinned to 0.0 for
+    deterministic financial extraction, matching the Gemini path.
+    """
+    import httpx
+
+    if not NVIDIA_API_KEY:
+        raise RuntimeError("NVIDIA_API_KEY is required for NVIDIA NIM inference.")
+
+    model = model_name or NVIDIA_NIM_MODEL
+    try:
+        response = httpx.post(
+            f"{NVIDIA_NIM_BASE_URL.rstrip('/')}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {NVIDIA_API_KEY}",
+                "Accept": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "max_tokens": NVIDIA_MAX_TOKENS,
+                "temperature": 0.0,
+                "top_p": 1.0,
+                "stream": False,
+            },
+            timeout=NVIDIA_TIMEOUT_SECONDS,
+        )
+    except httpx.TimeoutException as exc:
+        raise RuntimeError(f"NVIDIA NIM request timeout after {NVIDIA_TIMEOUT_SECONDS}s") from exc
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"NVIDIA NIM connection error: {_sanitize_error(exc)}") from exc
+
+    if response.status_code != 200:
+        # Include the status code so _is_transient_error / _is_quota_or_rate_limit_error
+        # can classify retryability from the message.
+        body_snippet = _sanitize_error(RuntimeError(response.text[:200]))
+        raise RuntimeError(f"NVIDIA NIM HTTP {response.status_code}: {body_snippet}")
+
+    payload = response.json()
+    choices = payload.get("choices") or []
+    if not choices or not (choices[0].get("message") or {}).get("content"):
+        raise RuntimeError("NVIDIA NIM returned an empty completion.")
+    content = choices[0]["message"]["content"]
+
+    # Reasoning-style models may wrap chain-of-thought in <think> tags — strip them
+    # so downstream JSON parsers see only the final answer.
+    content = re.sub(r"<think>[\s\S]*?</think>", "", content).strip()
+    return content
+
+
+def _dispatch_provider_call(
+    provider: str,
+    system_prompt: str,
+    user_prompt: str,
+    runtime_config: RuntimeModelConfig,
+) -> str:
+    if provider == "nvidia-nim":
+        model = runtime_config.model_name if runtime_config.provider == "nvidia-nim" else None
+        return _call_nvidia_nim(system_prompt, user_prompt, model_name=model)
+
+    if runtime_config.provider != "google-genai":
+        # Cross-provider fallback: rebuild a Gemini-shaped config.
+        runtime_config = RuntimeModelConfig(
+            registry_id=None,
+            tenant_id=runtime_config.tenant_id,
+            purpose=runtime_config.purpose,
+            provider="google-genai",
+            model_name=DEFAULT_MODEL_NAME,
+            prompt_version=runtime_config.prompt_version,
+            config={},
+        )
+    return _call_gemini_with_config(system_prompt, user_prompt, runtime_config)
 
 
 def ask_llm(
@@ -133,27 +302,77 @@ def ask_llm(
     *,
     purpose: str | None = None,
     tenant_id: str | None = None,
+    skip_cache: bool = False,
 ) -> str:
     """
-    Submit prompt to Gemini using the active runtime configuration.
+    Submit prompt to the active LLM provider (Gemini or NVIDIA NIM).
     Transient errors are retried up to 3x with exponential backoff via tenacity.
-    No secondary LLM fallback is allowed in the Phase 0/1 extraction pipeline.
+    If the primary provider fails (including quota exhaustion) and the other
+    provider's key is configured, the call falls back to it before raising.
+
+    Responses are cached in-process (SHA-256 keyed by provider+model+prompts,
+    1-hour TTL by default).  Pass ``skip_cache=True`` to force a fresh call.
     """
     runtime_config = resolve_llm_runtime_config(purpose=purpose, tenant_id=tenant_id)
 
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY and not NVIDIA_API_KEY:
         logger.error("[LLM Engine] No API keys configured")
-        raise RuntimeError("No API keys found. Please configure GEMINI_API_KEY.")
+        raise RuntimeError("No API keys found. Please configure GEMINI_API_KEY or NVIDIA_API_KEY.")
+
+    primary = runtime_config.provider
+    # If the registry-selected provider has no key locally, run on whichever does.
+    if primary == "google-genai" and not GEMINI_API_KEY:
+        primary = "nvidia-nim"
+    elif primary == "nvidia-nim" and not NVIDIA_API_KEY:
+        primary = "google-genai"
+
+    if primary == "google-genai":
+        fallback = "nvidia-nim" if _nvidia_fallback_enabled() else None
+    else:
+        fallback = "google-genai" if GEMINI_API_KEY else None
+
+    # Check response cache before making an API call
+    use_cache = _cache_enabled() and not skip_cache
+    cache_key_val: str | None = None
+    if use_cache:
+        cache_key_val = _cache_key(system_prompt, user_prompt, f"{primary}:{runtime_config.model_name}")
+        cached = _cache_get(cache_key_val)
+        if cached is not None:
+            logger.debug("[LLM Engine] Cache hit — returning cached response (key=%s…)", cache_key_val[:12])
+            return cached
 
     try:
-        return _call_gemini_with_config(system_prompt, user_prompt, runtime_config)
-    except Exception as e_gemini:
-        if _is_quota_or_rate_limit_error(e_gemini):
-            logger.error("[LLM Engine] Primary LLM quota/rate limit: %s", _sanitize_error(e_gemini))
-            raise RuntimeError(f"Rate limit or quota exceeded: {_sanitize_error(e_gemini)}")
+        result = _dispatch_provider_call(primary, system_prompt, user_prompt, runtime_config)
+        if use_cache and cache_key_val:
+            _cache_put(cache_key_val, result)
+        return result
+    except Exception as e_primary:
+        sanitized = _sanitize_error(e_primary)
+        if fallback is None:
+            if _is_quota_or_rate_limit_error(e_primary):
+                logger.error("[LLM Engine] Primary LLM quota/rate limit: %s", sanitized)
+                raise RuntimeError(f"Rate limit or quota exceeded: {sanitized}")
+            logger.error("[LLM Engine] %s call failed: %s", primary, sanitized)
+            raise RuntimeError(f"Primary LLM failed: {sanitized}")
 
-        logger.error("[LLM Engine] Gemini call failed: %s", _sanitize_error(e_gemini))
-        raise RuntimeError(f"Primary LLM failed: {_sanitize_error(e_gemini)}")
+        logger.warning(
+            "[LLM Engine] Primary provider %s failed (%s) — falling back to %s",
+            primary, sanitized, fallback,
+        )
+        try:
+            result = _dispatch_provider_call(fallback, system_prompt, user_prompt, runtime_config)
+            if use_cache and cache_key_val:
+                _cache_put(cache_key_val, result)
+            return result
+        except Exception as e_fallback:
+            fb_sanitized = _sanitize_error(e_fallback)
+            logger.error(
+                "[LLM Engine] Fallback provider %s also failed: %s", fallback, fb_sanitized
+            )
+            raise RuntimeError(
+                f"All LLM providers failed. Primary ({primary}): {sanitized} | "
+                f"Fallback ({fallback}): {fb_sanitized}"
+            )
 
 
 def _build_generic_fallback_profile() -> dict:

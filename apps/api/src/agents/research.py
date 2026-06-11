@@ -44,8 +44,37 @@ class ResearchAgent(BaseAgent):
 
             # Determine tasks to run
             task = self.task_name
-            run_brief = task in ("industry_brief", "industry_brief")
-            run_buyers = task in ("buyer_universe", "industry_brief")  # always do both if brief
+            run_brief = task == "industry_brief"
+            run_buyers = task in ("buyer_universe", "industry_brief")  # always run buyers with brief
+
+            # Enrich with WorldMonitor macro/market context
+            macro_context = self._fetch_macro_context()
+            if macro_context:
+                self.observe(f"WorldMonitor macro context appended ({len(macro_context)} chars).")
+                doc_context += (
+                    "\n\n--- Macro & Market Context (WorldMonitor Live Data) ---\n"
+                    + macro_context
+                )
+
+            # Enrich with SerpAPI search intelligence (on whenever key is set —
+            # free tier; the client caches and guards the monthly quota)
+            serp_context = self._fetch_serp_context(deal_info)
+            if serp_context:
+                self.observe(f"SerpAPI search context appended ({len(serp_context)} chars).")
+                doc_context += (
+                    "\n\n--- Live Search Intelligence (SerpAPI / Google) ---\n"
+                    + serp_context
+                )
+
+            # Enrich with TinyFish web intelligence (opt-in)
+            if self.input_payload.get("parameters", {}).get("web_enrichment"):
+                web_context = self._fetch_web_buyer_context(deal_info)
+                if web_context:
+                    self.observe(f"TinyFish web context appended ({len(web_context)} chars).")
+                    doc_context += (
+                        "\n\n--- Live Web Intelligence (TinyFish) ---\n"
+                        + web_context
+                    )
 
             if run_brief:
                 self.act("ask_llm", "generating industry brief")
@@ -68,6 +97,7 @@ class ResearchAgent(BaseAgent):
                 self.observe(f"Buyer universe LLM response ({len(raw2)} chars).")
 
                 buyer_data = self._parse_json(raw2)
+                self._persist_buyer_outreach(buyer_data)
                 json_path = os.path.join(_OUTPUT_DIR, f"{safe_name}_BuyerUniverse_{date_str}.json")
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(buyer_data, f, indent=2, ensure_ascii=False)
@@ -81,6 +111,224 @@ class ResearchAgent(BaseAgent):
             self.fail(str(exc))
 
         return self.run_id
+
+    def _persist_buyer_outreach(self, buyer_data: dict) -> None:
+        from database import SessionLocal, ensure_database_ready
+        from db_models import BuyerOutreachModel
+        import uuid as uuid_mod
+
+        ensure_database_ready()
+        buyers: list[tuple[str, str, dict]] = []
+        for buyer_type, key in (("strategic", "strategic_buyers"), ("financial", "financial_buyers")):
+            for item in buyer_data.get(key, []) or []:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                if name:
+                    payload = dict(item)
+                    payload.setdefault("outreach_status", "not_contacted")
+                    buyers.append((buyer_type, name, payload))
+
+        if not buyers:
+            return
+
+        with SessionLocal() as db:
+            existing = {
+                b.buyer_name.strip().lower(): b
+                for b in db.query(BuyerOutreachModel).filter(BuyerOutreachModel.deal_id == self.deal_id).all()
+            }
+            next_idx = len(existing)
+            for buyer_type, name, payload in buyers:
+                key = name.strip().lower()
+                row = existing.get(key)
+                if row:
+                    row.buyer_payload = payload
+                    row.buyer_type = buyer_type
+                    continue
+                row = BuyerOutreachModel(
+                    id=str(uuid_mod.uuid4()),
+                    deal_id=self.deal_id,
+                    buyer_idx=next_idx,
+                    buyer_name=name,
+                    buyer_type=buyer_type,
+                    outreach_status=payload.get("outreach_status", "not_contacted"),
+                    source_run_id=self.run_id,
+                    buyer_payload=payload,
+                )
+                db.add(row)
+                next_idx += 1
+            db.commit()
+
+    def _fetch_macro_context(self) -> str:
+        """Fetch macro/market data from WorldMonitor for research enrichment."""
+        try:
+            from tools.world_monitor import wm_client
+            if not wm_client.enabled:
+                return ""
+
+            # Fetch all four endpoints in parallel to cut latency
+            signals, fg, fred, implications = wm_client._run_async_gather(
+                wm_client.get_macro_signals(),
+                wm_client.get_fear_greed_index(),
+                wm_client.get_fred_batch(["DGS10", "FEDFUNDS", "CPIAUCSL", "VIXCLS"]),
+                wm_client.get_market_implications(),
+            )
+
+            sections: list[str] = []
+
+            if signals and not signals.unavailable:
+                sections.append(
+                    f"Market Regime: {signals.verdict} "
+                    f"({signals.bullish_count}/{signals.total_count} signals bullish)"
+                )
+
+            if fg and fg.value:
+                sections.append(
+                    f"Fear & Greed Index: {fg.value} ({fg.classification})"
+                )
+
+            if fred:
+                labels = {
+                    "DGS10": "10Y Treasury Yield",
+                    "FEDFUNDS": "Fed Funds Rate",
+                    "CPIAUCSL": "CPI (All Urban)",
+                    "VIXCLS": "VIX Volatility",
+                }
+                for sid, data in fred.items():
+                    if data.observations:
+                        obs = data.observations[-1]
+                        sections.append(
+                            f"{labels.get(sid, sid)}: {obs.value} (as of {obs.date})"
+                        )
+
+            if implications:
+                imp_lines = []
+                for card in implications[:3]:
+                    imp_lines.append(
+                        f"  - {card.ticker} {card.name}: {card.direction} "
+                        f"({card.confidence} confidence, {card.timeframe}) — "
+                        f"{card.title}"
+                    )
+                if imp_lines:
+                    sections.append(
+                        "Market Implications:\n" + "\n".join(imp_lines)
+                    )
+
+            return "\n".join(sections)
+        except Exception as exc:
+            logger.debug("WorldMonitor macro context fetch failed: %s", exc)
+            return ""
+
+    def _fetch_serp_context(self, deal_info: dict) -> str:
+        """Fetch M&A news, company coverage, and competitor landscape via SerpAPI."""
+        try:
+            from tools.serp import serp_client
+            if not serp_client.enabled:
+                return ""
+
+            industry = deal_info.get("industry", "")
+            company = deal_info.get("company_name", "")
+            sections: list[str] = []
+
+            import concurrent.futures
+            futures: dict[str, concurrent.futures.Future] = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+                if industry:
+                    futures["ma"] = pool.submit(serp_client.get_ma_news_sync, industry, 6)
+                if company:
+                    futures["news"] = pool.submit(serp_client.get_company_news_sync, company, 6)
+                if company and industry:
+                    futures["comp"] = pool.submit(
+                        serp_client.find_competitors_sync, company, industry
+                    )
+
+            if "ma" in futures:
+                block = serp_client.format_news_block(
+                    f"Recent M&A Activity ({industry})", futures["ma"].result()
+                )
+                if block:
+                    sections.append(block)
+
+            if "news" in futures:
+                block = serp_client.format_news_block(
+                    f"Recent News Coverage ({company})", futures["news"].result()
+                )
+                if block:
+                    sections.append(block)
+
+            if "comp" in futures:
+                comp = futures["comp"].result()
+                if comp and comp.organic:
+                    lines = [
+                        f"  - {r.title}: {r.snippet}"
+                        for r in comp.organic[:5]
+                        if r.snippet
+                    ]
+                    if lines:
+                        sections.append(
+                            "Competitor Landscape (search results):\n" + "\n".join(lines)
+                        )
+
+            return "\n\n".join(sections)
+        except Exception as exc:
+            logger.debug("SerpAPI research context fetch failed: %s", exc)
+            return ""
+
+    def _fetch_web_buyer_context(self, deal_info: dict) -> str:
+        """Fetch live web data via TinyFish for buyer universe enrichment."""
+        try:
+            from tools.web_agent import web_agent
+            if not web_agent.enabled:
+                return ""
+
+            industry = deal_info.get("industry", "")
+            company = deal_info.get("company_name", "")
+            sections: list[str] = []
+
+            # Submit M&A and competitor fetches in parallel using threads
+            import concurrent.futures
+            futures: dict[str, concurrent.futures.Future] = {}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+                if industry:
+                    futures["ma"] = pool.submit(
+                        web_agent.fetch_recent_ma_activity_sync, industry
+                    )
+                if company and industry:
+                    futures["comp"] = pool.submit(
+                        web_agent.fetch_competitor_landscape_sync, company, industry
+                    )
+
+            if "ma" in futures:
+                ma_result = futures["ma"].result()
+                if ma_result.success and ma_result.data:
+                    deals = ma_result.data if isinstance(ma_result.data, list) else [ma_result.data]
+                    lines = []
+                    for d in deals[:5]:
+                        if isinstance(d, dict):
+                            acq = d.get("acquirer", "Unknown")
+                            tgt = d.get("target", "Unknown")
+                            val = d.get("deal_value_usd", "N/A")
+                            lines.append(f"  - {acq} -> {tgt} ({val})")
+                    if lines:
+                        sections.append("Recent M&A Activity:\n" + "\n".join(lines))
+
+            if "comp" in futures:
+                comp_result = futures["comp"].result()
+                if comp_result.success and comp_result.data:
+                    comps = comp_result.data if isinstance(comp_result.data, list) else [comp_result.data]
+                    lines = []
+                    for c in comps[:8]:
+                        if isinstance(c, dict):
+                            name = c.get("name", "Unknown")
+                            mcap = c.get("market_cap", "N/A")
+                            lines.append(f"  - {name} (Market Cap: {mcap})")
+                    if lines:
+                        sections.append("Competitor Landscape:\n" + "\n".join(lines))
+
+            return "\n".join(sections)
+        except Exception as exc:
+            logger.debug("TinyFish web buyer context fetch failed: %s", exc)
+            return ""
 
     def _parse_json(self, raw: str) -> dict:
         match = re.search(r"\{[\s\S]*\}", raw.strip())

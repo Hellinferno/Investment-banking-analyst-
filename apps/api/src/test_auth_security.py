@@ -11,6 +11,13 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, ".")
 
+# The dev-token endpoint is fail-closed: it requires AIBAA_ENV in
+# {development, test} AND a strong (>= 32 char) non-default bootstrap token.
+# Configure both before importing the app so the test exercises the real path.
+DEV_BOOTSTRAP_TOKEN = "test-bootstrap-" + ("x" * 32)
+os.environ["AIBAA_ENV"] = "test"
+os.environ["AIBAA_DEV_BOOTSTRAP_TOKEN"] = DEV_BOOTSTRAP_TOKEN
+
 from database import SessionLocal, ensure_database_ready
 from db_models import DealModel, OutputModel
 from dependencies import create_access_token, get_auth_settings, get_demo_users
@@ -75,6 +82,37 @@ def _seed_output() -> tuple[str, str]:
         )
         db.commit()
     return deal_id, output_id
+
+
+def test_dev_token_rejects_well_known_token():
+    """The old default token must be rejected even with a valid env."""
+    response = client.post(
+        "/api/v1/auth/dev-token",
+        json={"requested_role": "analyst"},
+        headers={"X-Dev-API-Token": "dev-local-token"},
+    )
+    assert response.status_code == 403, response.text
+
+
+def test_dev_token_cannot_mint_admin():
+    """Privilege escalation to admin via the bootstrap path must be blocked."""
+    response = client.post(
+        "/api/v1/auth/dev-token",
+        json={"requested_role": "admin"},
+        headers={"X-Dev-API-Token": DEV_BOOTSTRAP_TOKEN},
+    )
+    assert response.status_code == 403, response.text
+
+
+def test_dev_token_404_when_env_is_production(monkeypatch):
+    """Endpoint must be invisible (404) outside development/test."""
+    monkeypatch.setenv("AIBAA_ENV", "production")
+    response = client.post(
+        "/api/v1/auth/dev-token",
+        json={"requested_role": "analyst"},
+        headers={"X-Dev-API-Token": DEV_BOOTSTRAP_TOKEN},
+    )
+    assert response.status_code == 404, response.text
 
 
 def test_auth_me_returns_claims_from_jwt():

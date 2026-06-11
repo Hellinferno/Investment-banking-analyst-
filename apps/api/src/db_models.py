@@ -20,6 +20,8 @@ class DealModel(Base):
     deal_type = Column(String, default="other")
     industry = Column(String)
     deal_stage = Column(String, default="preliminary")
+    process_stage = Column(String, default="origination")
+    stage_last_updated = Column(DateTime, default=_utcnow)
     notes = Column(String, nullable=True)
     
     created_at = Column(DateTime, default=_utcnow)
@@ -28,6 +30,7 @@ class DealModel(Base):
     documents = relationship("DocumentModel", back_populates="deal", cascade="all, delete-orphan")
     agent_runs = relationship("AgentRunModel", back_populates="deal", cascade="all, delete-orphan")
     outputs = relationship("OutputModel", back_populates="deal", cascade="all, delete-orphan")
+    buyer_outreach = relationship("BuyerOutreachModel", back_populates="deal", cascade="all, delete-orphan")
 
 
 class DocumentModel(Base):
@@ -90,6 +93,9 @@ class OutputModel(Base):
     output_category = Column(String)
     storage_path = Column(String)
     review_status = Column(String, default="draft")
+    reviewed_by = Column(String, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    review_comment = Column(String, nullable=True)
     version = Column(Integer, default=1)
     
     created_at = Column(DateTime, default=_utcnow)
@@ -146,6 +152,23 @@ class OutputReviewEventModel(Base):
     review_status = Column(String, default="draft")
     reviewer_notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=_utcnow)
+
+
+class BuyerOutreachModel(Base):
+    __tablename__ = "buyer_outreach"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    deal_id = Column(String, ForeignKey("deals.id"), index=True)
+    buyer_idx = Column(Integer, nullable=False)
+    buyer_name = Column(String, nullable=False)
+    buyer_type = Column(String, default="strategic")
+    outreach_status = Column(String, default="not_contacted")
+    source_run_id = Column(String, nullable=True)
+    buyer_payload = Column(JSON, default=dict)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+
+    deal = relationship("DealModel", back_populates="buyer_outreach")
 
 
 class SecurityAuditLogModel(Base):

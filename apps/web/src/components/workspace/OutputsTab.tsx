@@ -85,8 +85,8 @@ export default function OutputsTab({ dealId }: Props) {
                                     {new Date(out.created_at).toLocaleString()} · {out.output_type}
                                 </div>
                             </div>
-                            <span className={`badge ${approved ? 'badge-emerald' : 'badge-amber'}`}>
-                                {out.review_status}
+                            <span className={`badge ${out.review_status === 'approved' ? 'badge-emerald' : out.review_status === 'rejected' ? 'badge-red' : out.review_status === 'needs_changes' ? 'badge-amber' : 'badge-slate'}`}>
+                                {out.review_status.replace('_', ' ').toUpperCase()}
                             </span>
                             {!approved && canApprove && (
                                 <button
@@ -101,14 +101,14 @@ export default function OutputsTab({ dealId }: Props) {
                             <button
                                 className="btn-primary"
                                 onClick={() => handleDownload(out)}
-                                disabled={!approved || busy}
+                                disabled={busy}
                                 style={{
                                     padding: '6px 14px',
                                     fontSize: 11,
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 5,
-                                    opacity: !approved || busy ? 0.6 : 1,
+                                    opacity: busy ? 0.6 : 1,
                                 }}
                             >
                                 <Download size={11} /> {busy && approved ? 'DOWNLOADING...' : 'DOWNLOAD'}

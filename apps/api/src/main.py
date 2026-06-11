@@ -26,6 +26,7 @@ from persistence import hydrate_store_from_db, sync_deal_to_store, sync_document
 from rag.indexing import schedule_rag_indexing, update_document_rag_state
 from routers import agents, auth, deals, documents, outputs, tasks
 from routers.admin import router as admin_router
+from routers.search import router as search_router
 from routers.webhooks import router as webhooks_router
 from routers.world_monitor import router as world_monitor_router
 
@@ -67,6 +68,47 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 settings = Settings()
 
 _origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+
+
+def _validate_production_security() -> None:
+    """Refuse to start in production with insecure defaults.
+
+    Catches the most damaging misconfigurations before the app accepts any
+    traffic: a default JWT secret (forgeable cross-tenant admin tokens) and a
+    wildcard CORS origin paired with credentialed requests.
+    """
+    if os.environ.get("AIBAA_ENV", "development").strip().lower() != "production":
+        return
+
+    from dependencies import get_auth_settings
+
+    auth_settings = get_auth_settings()
+    _DEFAULT_SECRETS = {
+        "aibaa-demo-jwt-secret-change-me",
+        "aibaa-dev-jwt-secret-change-me",
+        "",
+    }
+    if auth_settings.jwt_secret in _DEFAULT_SECRETS or len(auth_settings.jwt_secret) < 32:
+        raise RuntimeError(
+            "FATAL: AIBAA_JWT_SECRET is unset, default, or too short (<32 chars) in "
+            "production. Set a strong secret (python -c \"import secrets; "
+            "print(secrets.token_urlsafe(32))\") before starting."
+        )
+
+    if "*" in _origins:
+        raise RuntimeError(
+            "FATAL: CORS allow_origins contains '*' with credentialed requests "
+            "enabled in production. Set AIBAA_ALLOWED_ORIGINS to explicit hosts."
+        )
+
+    if not auth_settings.session_cookie_secure:
+        logger.warning(
+            "AIBAA_SESSION_COOKIE_SECURE is false in production — session cookies "
+            "will transmit over plaintext HTTP. Set it to true behind TLS."
+        )
+
+
+_validate_production_security()
 
 app = FastAPI(
     title=settings.app_name,
@@ -113,6 +155,7 @@ app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(admin_router, prefix="/api/v1")
 app.include_router(webhooks_router, prefix="/api/v1")
 app.include_router(world_monitor_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health", tags=["Health"])
@@ -177,70 +220,102 @@ async def _recover_uploads() -> None:
     """
     from store import store
     from store import Deal, Document
+    from db_models import AgentRunModel
 
     ensure_database_ready()
     db = SessionLocal()
-    hydrate_store_from_db(db)
-
-    if not _UPLOAD_BASE.exists():
-        db.close()
-        return
-
-    loop = asyncio.get_event_loop()
-    to_parse: list[str] = []
-
-    for deal_dir in _UPLOAD_BASE.iterdir():
-        if not deal_dir.is_dir():
-            continue
-        deal_id = deal_dir.name
-        if not _UUID_RE.match(deal_id):
-            continue
-
-        # Recover deal stub if not already present.
-        db_deal = db.query(DealModel).filter(DealModel.id == deal_id).first()
-        if db_deal is None:
-            db_deal = DealModel(
-                id=deal_id,
-                tenant_id="org_cyberbank",
-                owner_id="system_recovery",
-                name=f"Recovered Deal ({deal_id[:8]})",
-                company_name="(Restored from disk)",
+    try:
+        # Reconcile agent runs orphaned by a previous non-graceful shutdown:
+        # anything still "running" cannot resume, so mark it failed so the UI
+        # stops polling forever and the run is auditable as interrupted.
+        stale = (
+            db.query(AgentRunModel)
+            .filter(AgentRunModel.status == "running")
+            .update(
+                {
+                    AgentRunModel.status: "failed",
+                    AgentRunModel.error_message: "Interrupted by server restart while running.",
+                },
+                synchronize_session=False,
             )
-            db.add(db_deal)
+        )
+        if stale:
             db.commit()
-        sync_deal_to_store(db_deal)
+            logger.warning("Recovered %d agent run(s) stuck in 'running' after restart.", stale)
 
-        for fpath in deal_dir.iterdir():
-            if not fpath.is_file():
+        hydrate_store_from_db(db)
+
+        if not _UPLOAD_BASE.exists():
+            return
+
+        loop = asyncio.get_event_loop()
+        to_parse: list[str] = []
+
+        # Disk recovery re-inserts deals under a tenant. Hardcoding one tenant
+        # would expose another tenant's restored files; require an explicit
+        # opt-in env var, otherwise skip stub creation for unknown deals.
+        _recovery_tenant = os.environ.get("AIBAA_RECOVERY_TENANT_ID", "").strip()
+
+        for deal_dir in _UPLOAD_BASE.iterdir():
+            if not deal_dir.is_dir():
                 continue
-            ext = fpath.suffix.lstrip(".").lower()
-            if ext not in _ALLOWED_EXTS:
+            deal_id = deal_dir.name
+            if not _UUID_RE.match(deal_id):
                 continue
 
-            # Filename format: {file_id}_{original_name}
-            name_part = fpath.name
-            maybe_id = name_part.split("_", 1)[0]
-            file_id = maybe_id if _UUID_RE.match(maybe_id) else str(uuid.uuid4())
-            original_name = name_part[len(maybe_id) + 1:] if _UUID_RE.match(maybe_id) else name_part
-
-            db_doc = db.query(DocumentModel).filter(DocumentModel.id == file_id).first()
-            if db_doc is None:
-                db_doc = DocumentModel(
-                    id=file_id,
-                    deal_id=deal_id,
-                    filename=original_name,
-                    file_type=ext,
-                    file_size_bytes=fpath.stat().st_size,
-                    storage_path=str(fpath),
-                    parse_status="pending",
+            # Recover deal stub if not already present.
+            db_deal = db.query(DealModel).filter(DealModel.id == deal_id).first()
+            if db_deal is None:
+                if not _recovery_tenant:
+                    logger.warning(
+                        "Skipping disk recovery for unknown deal %s — set "
+                        "AIBAA_RECOVERY_TENANT_ID to enable stub creation.",
+                        deal_id,
+                    )
+                    continue
+                db_deal = DealModel(
+                    id=deal_id,
+                    tenant_id=_recovery_tenant,
+                    owner_id="system_recovery",
+                    name=f"Recovered Deal ({deal_id[:8]})",
+                    company_name="(Restored from disk)",
                 )
-                db.add(db_doc)
+                db.add(db_deal)
                 db.commit()
-            sync_document_to_store(db_doc)
-            to_parse.append(file_id)
+            sync_deal_to_store(db_deal)
 
-    db.commit()
-    db.close()
+            for fpath in deal_dir.iterdir():
+                if not fpath.is_file():
+                    continue
+                ext = fpath.suffix.lstrip(".").lower()
+                if ext not in _ALLOWED_EXTS:
+                    continue
+
+                # Filename format: {file_id}_{original_name}
+                name_part = fpath.name
+                maybe_id = name_part.split("_", 1)[0]
+                file_id = maybe_id if _UUID_RE.match(maybe_id) else str(uuid.uuid4())
+                original_name = name_part[len(maybe_id) + 1:] if _UUID_RE.match(maybe_id) else name_part
+
+                db_doc = db.query(DocumentModel).filter(DocumentModel.id == file_id).first()
+                if db_doc is None:
+                    db_doc = DocumentModel(
+                        id=file_id,
+                        deal_id=deal_id,
+                        filename=original_name,
+                        file_type=ext,
+                        file_size_bytes=fpath.stat().st_size,
+                        storage_path=str(fpath),
+                        parse_status="pending",
+                    )
+                    db.add(db_doc)
+                    db.commit()
+                sync_document_to_store(db_doc)
+                to_parse.append(file_id)
+
+        db.commit()
+    finally:
+        db.close()
 
     # Fire off parsing in the background — don't await so startup completes fast.
     for doc_id in to_parse:

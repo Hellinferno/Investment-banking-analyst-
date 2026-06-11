@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Generic, Literal, Optional, TypeVar
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 DealTypeStr = Literal[
     "ipo", "ma", "lbo", "debt_raise", "equity_raise",
@@ -14,8 +14,16 @@ DealStageStr = Literal[
     "preliminary", "in_progress", "due_diligence", "final", "closed",
 ]
 
+ProcessStageStr = Literal[
+    "origination", "teaser", "nda", "cim", "ioi", "management_meetings",
+    "loi", "diligence", "close",
+    # Legacy values accepted for backward compatibility with existing UI/data.
+    "nda_negotiation", "nda_signed", "teaser_sent", "cim_sent",
+    "io_received", "loi_signed", "exclusivity", "definitive_agreement",
+]
+
 PriorityStr = Literal["low", "medium", "high"]
-ReviewStatusStr = Literal["draft", "in_review", "approved", "rejected"]
+ReviewStatusStr = Literal["draft", "in_review", "approved", "rejected", "needs_changes"]
 UserRoleStr = Literal["analyst", "reviewer", "admin"]
 RegistryStatusStr = Literal["staged", "active", "rollback"]
 ValidationStatusStr = Literal["pending", "passed", "failed", "warning", "skipped"]
@@ -36,6 +44,7 @@ class DealCreate(BaseModel):
     deal_type: DealTypeStr
     industry: str = Field(..., min_length=1, max_length=60)
     deal_stage: DealStageStr = "preliminary"
+    process_stage: ProcessStageStr = "origination"
     notes: Optional[str] = Field(None, max_length=2000)
 
     @field_validator("name", "company_name", "industry", mode="before")
@@ -55,7 +64,9 @@ class DealUpdate(BaseModel):
     deal_type: Optional[DealTypeStr] = None
     industry: Optional[str] = Field(None, min_length=1, max_length=60)
     deal_stage: Optional[DealStageStr] = None
+    process_stage: Optional[ProcessStageStr] = None
     notes: Optional[str] = Field(None, max_length=2000)
+    force: bool = False
 
     @field_validator("name", "company_name", "industry", mode="before")
     @classmethod
@@ -111,13 +122,32 @@ class AuthTokenResponse(BaseModel):
 
 
 class OutputReviewUpdate(BaseModel):
-    review_status: ReviewStatusStr
+    review_status: Optional[ReviewStatusStr] = None
     reviewer_notes: Optional[str] = Field(None, max_length=2000)
+    decision: Optional[ReviewStatusStr] = None
+    comment: Optional[str] = Field(None, max_length=2000)
 
-    @field_validator("reviewer_notes", mode="before")
+    @field_validator("reviewer_notes", "comment", mode="before")
     @classmethod
     def sanitize_reviewer_notes(cls, value):
         return _strip_html(value)
+
+    @model_validator(mode="after")
+    def require_status(self):
+        if not (self.review_status or self.decision):
+            raise ValueError("review_status or decision is required")
+        return self
+
+    @property
+    def resolved_status(self) -> ReviewStatusStr:
+        status_value = self.review_status or self.decision
+        if not status_value:
+            raise ValueError("review_status or decision is required")
+        return status_value
+
+    @property
+    def resolved_notes(self) -> Optional[str]:
+        return self.reviewer_notes if self.reviewer_notes is not None else self.comment
 
 
 class ExtractionField(BaseModel, Generic[T]):

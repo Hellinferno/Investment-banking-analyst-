@@ -79,6 +79,7 @@ services:
       AIBAA_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:80"
       REDIS_URL: redis://redis:6379/0
       AIBAA_CHROMA_DIR: /chroma_data
+      WORLDMONITOR_API_URL: ${WORLDMONITOR_API_URL:-}
     env_file:
       - .env
     volumes:
@@ -94,6 +95,19 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # ---- WorldMonitor Sidecar (optional — macro/market/risk data) ----
+  worldmonitor:
+    build:
+      context: ./worldmonitor
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      FRED_API_KEY: ${FRED_API_KEY:-}
+    profiles:
+      - worldmonitor  # Only starts with: docker compose --profile worldmonitor up
 
   # ---- React Frontend ----
   web:

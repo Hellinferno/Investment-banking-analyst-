@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from db_models import AgentRunModel, DealModel, DocumentModel
-from dependencies import CurrentUserDep, DbSessionDep, get_current_user, get_db
+from dependencies import CurrentUserDep, DbSessionDep, ReviewerUserDep, get_current_user, get_db
 from models import APIResponse, Meta
 from persistence import (
     get_deal_for_user,
@@ -30,12 +30,47 @@ from agents.due_diligence import DueDiligenceAgent
 from agents.research import ResearchAgent
 from agents.doc_drafter import DocDrafterAgent
 from agents.coordination import CoordinationAgent
+from agents.comps import ValuationCompsAgent
+from agents.merger_model import MergerModelAgent
+from agents.memo import InvestmentMemoAgent
+from agents.football_field import FootballFieldAgent
+from agents.deal_pipeline import AutonomousDealPipeline
+from agents.three_statement import ThreeStatementModelAgent
 from database import SessionLocal
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/deals", tags=["Agents"])
 
-_agent_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="agent_run")
+# Single-agent runs and long-running autopilot pipelines use SEPARATE pools so
+# that one (or two) multi-hour autopilot runs cannot starve interactive
+# single-agent dispatches. Worker counts are env-tunable.
+_agent_pool = ThreadPoolExecutor(
+    max_workers=int(os.environ.get("AIBAA_AGENT_POOL_WORKERS", "5")),
+    thread_name_prefix="agent_run",
+)
+_autopilot_pool = ThreadPoolExecutor(
+    max_workers=int(os.environ.get("AIBAA_AUTOPILOT_POOL_WORKERS", "3")),
+    thread_name_prefix="autopilot_run",
+)
+
+
+def _pool_for(agent: "BaseAgent") -> ThreadPoolExecutor:
+    """Route autopilot pipelines to their own pool, everything else to the
+    shared single-agent pool."""
+    return _autopilot_pool if getattr(agent, "agent_type", "") == "autopilot" else _agent_pool
+
+
+def _submit_agent_run(agent: "BaseAgent") -> None:
+    """Submit a background run and ensure any thread-level exception that
+    escapes _execute_agent_run is logged rather than silently swallowed."""
+    future = _pool_for(agent).submit(_execute_agent_run, agent)
+
+    def _on_done(fut) -> None:
+        exc = fut.exception()
+        if exc is not None:
+            logger.error("Agent run thread crashed (run %s)", getattr(agent, "run_id", "?"), exc_info=exc)
+
+    future.add_done_callback(_on_done)
 
 
 class AgentRunPayload(BaseModel):
@@ -57,6 +92,7 @@ def _serialize_run(run_record) -> dict:
         "steps": _sanitize_reasoning_steps(run_record.reasoning_steps),
         "valuation_result": payload.get("valuation_result"),
         "lbo_result": payload.get("lbo_result"),
+        "three_statement_result": payload.get("three_statement_result"),
         "rag_chunks_used": payload.get("rag_chunks_used", []),
         "guard_events": payload.get("guard_events", []),
         "registry_id": payload.get("registry_id"),
@@ -77,7 +113,16 @@ AGENT_DISPATCH_MAP: dict[tuple[str, str], type[BaseAgent]] = {
     ("research", "industry_brief"): ResearchAgent,
     ("research", "buyer_universe"): ResearchAgent,
     ("doc_drafter", "cim_draft"): DocDrafterAgent,
+    ("doc_drafter", "teaser_draft"): DocDrafterAgent,
     ("coordination", "extract_tasks"): CoordinationAgent,
+    ("coordination", "process_status"): CoordinationAgent,
+    ("comps", "comps_analysis"): ValuationCompsAgent,
+    ("merger_model", "accretion_dilution"): MergerModelAgent,
+    ("memo_writer", "investment_memo"): InvestmentMemoAgent,
+    ("memo_writer", "football_field"): FootballFieldAgent,
+    ("football_field", "football_field"): FootballFieldAgent,
+    ("three_statement", "three_statement_model"): ThreeStatementModelAgent,
+    ("autopilot", "full_deal_package"): AutonomousDealPipeline,
 }
 
 
@@ -91,6 +136,72 @@ def _execute_agent_run(agent: BaseAgent) -> None:
         persist_run_bundle(db, agent.run_id)
     finally:
         db.close()
+
+
+def _start_agent_run(
+    deal_id: str,
+    payload: AgentRunPayload,
+    db: Session,
+    current_user: dict,
+) -> APIResponse:
+    deal = get_deal_for_user(db, deal_id, current_user["tenant_id"])
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+
+    sync_deal_to_store(deal)
+    _check_mnpi_consent(db, deal_id, payload.mnpi_consent)
+
+    orchestrator = OrchestratorAgent(
+        deal_id=deal_id,
+        input_payload=payload.model_dump(),
+    )
+    orch_id = orchestrator.run()
+    with SessionLocal() as persist_db:
+        persist_run_bundle(persist_db, orch_id)
+
+    orchestrator_record = store.agent_runs.get(orch_id)
+    if not orchestrator_record:
+        raise HTTPException(status_code=500, detail="Orchestrator run record not found")
+    if orchestrator_record.status != "completed":
+        raise HTTPException(
+            status_code=422,
+            detail=orchestrator_record.error_message or "Routing failed",
+        )
+
+    route = orchestrator_record.input_payload.get("route_decision", {})
+    target_agent = route.get("target_agent")
+    target_task = route.get("target_task")
+
+    route_key = (target_agent, target_task)
+    if route_key in AGENT_DISPATCH_MAP:
+        _ensure_documents_ready_for_run(db, deal_id)
+        specialized_payload = payload.model_dump()
+        specialized_payload["agent_type"] = target_agent
+        specialized_payload["task_name"] = target_task
+        specialized_payload["request_context"] = {
+            "tenant_id": current_user["tenant_id"],
+            "user_id": current_user["user_id"],
+            "role": current_user["role"],
+            "email": current_user.get("email"),
+        }
+        specialized_agent = AGENT_DISPATCH_MAP[route_key](deal_id, specialized_payload)
+        with SessionLocal() as persist_db:
+            persist_run_bundle(persist_db, specialized_agent.run_id)
+        _submit_agent_run(specialized_agent)
+
+        run_record = store.agent_runs.get(specialized_agent.run_id)
+        return APIResponse(
+            success=True,
+            data={**_serialize_run(run_record), "route": route},
+            meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
+        )
+
+    run_record = store.agent_runs.get(orch_id)
+    return APIResponse(
+        success=True,
+        data={**_serialize_run(run_record), "route": route},
+        meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
+    )
 
 
 def _check_mnpi_consent(db: Session, deal_id: str, mnpi_consent: bool | None) -> None:
@@ -224,71 +335,81 @@ async def dispatch_agent(
     db: DbSessionDep,
     current_user: CurrentUserDep,
 ):
-    deal = get_deal_for_user(db, deal_id, current_user["tenant_id"])
-    if not deal:
-        raise HTTPException(status_code=404, detail="Deal not found")
-
-    sync_deal_to_store(deal)
-    _check_mnpi_consent(db, deal_id, payload.mnpi_consent)
-
     try:
-        orchestrator = OrchestratorAgent(
-            deal_id=deal_id,
-            input_payload=payload.model_dump(),
-        )
-        orch_id = orchestrator.run()
-        with SessionLocal() as persist_db:
-            persist_run_bundle(persist_db, orch_id)
-
-        orchestrator_record = store.agent_runs.get(orch_id)
-        if not orchestrator_record:
-            raise HTTPException(status_code=500, detail="Orchestrator run record not found")
-        if orchestrator_record.status != "completed":
-            raise HTTPException(
-                status_code=422,
-                detail=orchestrator_record.error_message or "Routing failed",
-            )
-
-        route = orchestrator_record.input_payload.get("route_decision", {})
-        target_agent = route.get("target_agent")
-        target_task = route.get("target_task")
-
-        route_key = (target_agent, target_task)
-        if route_key in AGENT_DISPATCH_MAP:
-            _ensure_documents_ready_for_run(db, deal_id)
-            specialized_payload = payload.model_dump()
-            specialized_payload["agent_type"] = target_agent
-            specialized_payload["task_name"] = target_task
-            specialized_payload["request_context"] = {
-                "tenant_id": current_user["tenant_id"],
-                "user_id": current_user["user_id"],
-                "role": current_user["role"],
-                "email": current_user.get("email"),
-            }
-            specialized_agent = AGENT_DISPATCH_MAP[route_key](deal_id, specialized_payload)
-            with SessionLocal() as persist_db:
-                persist_run_bundle(persist_db, specialized_agent.run_id)
-            _agent_pool.submit(_execute_agent_run, specialized_agent)
-
-            run_record = store.agent_runs.get(specialized_agent.run_id)
-            return APIResponse(
-                success=True,
-                data={**_serialize_run(run_record), "route": route},
-                meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
-            )
-
-        run_record = store.agent_runs.get(orch_id)
-        return APIResponse(
-            success=True,
-            data={**_serialize_run(run_record), "route": route},
-            meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
-        )
-
+        return _start_agent_run(deal_id, payload, db, current_user)
     except HTTPException:
         raise
     except Exception:
         logger.exception("Agent dispatch failed for deal %s", deal_id)
         raise HTTPException(status_code=500, detail="Agent execution failed.")
+
+
+@router.post("/{deal_id}/autopilot/full-deal-package", response_model=APIResponse, status_code=202)
+async def dispatch_full_deal_package(
+    deal_id: str,
+    db: DbSessionDep,
+    current_user: CurrentUserDep,
+    parameters: Dict[str, Any] | None = None,
+):
+    # MNPI consent must be an explicit caller acknowledgement — never implied
+    # by the route. _start_agent_run enforces the gate via _check_mnpi_consent.
+    payload = AgentRunPayload(
+        agent_type="autopilot",
+        task_name="full_deal_package",
+        parameters=parameters or {},
+        mnpi_consent=bool((parameters or {}).get("mnpi_consent", False)),
+    )
+    try:
+        return _start_agent_run(deal_id, payload, db, current_user)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Autopilot dispatch failed for deal %s", deal_id)
+        raise HTTPException(status_code=500, detail="Autopilot dispatch failed.")
+
+
+@router.post("/{deal_id}/agents/runs/{run_id}/resume", response_model=APIResponse, status_code=202)
+async def resume_agent_run(
+    deal_id: str,
+    run_id: str,
+    db: DbSessionDep,
+    reviewer_user: ReviewerUserDep,
+):
+    deal = get_deal_for_user(db, deal_id, reviewer_user["tenant_id"])
+    if not deal:
+        raise HTTPException(status_code=404, detail="Deal not found")
+
+    db_run = (
+        db.query(AgentRunModel)
+        .filter(
+            AgentRunModel.id == run_id,
+            AgentRunModel.deal_id == deal_id,
+            AgentRunModel.agent_type == "autopilot",
+        )
+        .first()
+    )
+    if not db_run:
+        raise HTTPException(status_code=404, detail="Autopilot run not found")
+
+    payload = dict(db_run.input_payload or {})
+    params = dict(payload.get("parameters") or {})
+    params["resume_after_checkpoint"] = True
+    payload["parameters"] = params
+
+    agent = AutonomousDealPipeline(deal_id, payload, run_id=run_id)
+    agent.run_record.status = "running"
+    agent.run_record.error_message = None
+    agent.run_record.checkpoint_status = "resumed"
+    agent.run_record.input_payload = payload
+    agent._sync_to_db()
+    _submit_agent_run(agent)
+
+    run_record = store.agent_runs.get(agent.run_id) or agent.run_record
+    return APIResponse(
+        success=True,
+        data=_serialize_run(run_record),
+        meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
+    )
 
 
 @router.get("/{deal_id}/agents/runs", response_model=APIResponse)
@@ -360,6 +481,7 @@ async def get_agent_run(
             "steps": [],
             "valuation_result": (db_run.input_payload or {}).get("valuation_result"),
             "lbo_result": (db_run.input_payload or {}).get("lbo_result"),
+            "three_statement_result": (db_run.input_payload or {}).get("three_statement_result"),
             "rag_chunks_used": (db_run.input_payload or {}).get("rag_chunks_used", []),
             "guard_events": (db_run.input_payload or {}).get("guard_events", []),
             "registry_id": (db_run.input_payload or {}).get("registry_id"),

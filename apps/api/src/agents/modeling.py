@@ -2083,6 +2083,23 @@ class FinancialModelingAgent(BaseAgent):
                 projection_years=projection_years,
                 terminal_growth_rate=terminal_growth_rate,
             )
+            if params.get("use_three_statement_fcf"):
+                from store import store as _store
+
+                ts_runs = [
+                    r for r in _store.agent_runs.values()
+                    if r.deal_id == self.deal_id
+                    and r.agent_type == "three_statement"
+                    and r.status == "completed"
+                ]
+                if ts_runs:
+                    latest_ts = max(ts_runs, key=lambda r: getattr(r, "created_at", "") or "")
+                    ts_result = (latest_ts.input_payload or {}).get("three_statement_result") or {}
+                    ts_ufcf = ((ts_result.get("cash_flow_statement") or {}).get("ufcf") or [])
+                    if len(ts_ufcf) >= len(projections_data["projections"]["ufcf"]):
+                        projections_data["projections"]["ufcf"] = ts_ufcf[:len(projections_data["projections"]["ufcf"])]
+                        projections_data["assumptions"]["ufcf_source"] = "three_statement_model"
+                        self.observe("DCF refresh is using UFCF from the latest 3-statement model.")
             valuation_data = engine.calculate_valuation(
                 ufcf_projections=projections_data["projections"]["ufcf"],
                 wacc=wacc,

@@ -1,25 +1,8 @@
 import type { FC } from 'react'
+import { fmt, pctRaw as pct, multiple } from '../../lib/format'
 
 interface Props {
     data: Record<string, unknown>
-}
-
-function fmt(n: unknown, decimals = 0): string {
-    if (n === null || n === undefined || n === '') return '—'
-    const num = Number(n)
-    if (isNaN(num)) return String(n)
-    if (decimals === 0) return num.toLocaleString('en-IN', { maximumFractionDigits: 0 })
-    return num.toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-}
-
-function pct(n: unknown): string {
-    if (n === null || n === undefined) return '—'
-    return `${fmt(Number(n), 1)}%`
-}
-
-function multiple(n: unknown): string {
-    if (n === null || n === undefined) return '—'
-    return `${fmt(Number(n), 2)}x`
 }
 
 function dscrColor(val: number): string {

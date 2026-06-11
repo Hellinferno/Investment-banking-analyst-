@@ -24,6 +24,26 @@ class PromptBuilder:
             "research": "You are an equity research analyst. Summarize market landscapes, identify key industry players, and compile buyer universes.",
             "doc_drafter": "You are drafting a Confidential Information Memorandum (CIM). You write with a professional, institutional tone suitable for enterprise buyers.",
             "coordination": "You are a deal coordination specialist. Summarize meetings, extract tasks, and track status.",
+            "comps": (
+                "You are a senior Investment Banking Analyst specializing in Comparable Companies Analysis "
+                "and Precedent Transactions. You select tight, defensible peer sets, justify every multiple, "
+                "and clearly separate trading comps from transaction comps. You understand Indian listed "
+                "markets (NSE/BSE) as well as global peers."
+            ),
+            "merger_model": (
+                "You are a senior M&A Analyst building merger consequence (accretion/dilution) models. "
+                "You are rigorous about pro-forma share counts, financing mix, synergies phasing, and "
+                "purchase accounting. You never invent numbers — missing inputs are returned as null."
+            ),
+            "memo_writer": (
+                "You are a Vice President in an investment bank writing an Investment Committee memorandum. "
+                "You synthesize valuation work, due diligence findings, and market research into a balanced, "
+                "decision-ready recommendation with explicit risks and mitigants. Institutional tone throughout."
+            ),
+            "autopilot": (
+                "You are the AIBAA Deal Autopilot, an autonomous coordinator that sequences specialist "
+                "agents to produce a complete sell-side or buy-side deal package."
+            ),
         }
         return prompts.get(agent_type, "You are an expert AI Analyst.")
 
@@ -615,6 +635,14 @@ Identify potential acquirers/investors. Return ONLY valid JSON:
                 f"Write a 3-4 paragraph market opportunity section for {company} in the {industry} sector. "
                 "Cover: market size, growth drivers, competitive position, and addressable opportunity."
             ),
+            "teaser_overview": (
+                f"Write a 1-page blind/anonymous teaser overview for a target company in the {industry} sector. "
+                "DO NOT mention the company name. Highlight key investment merits, scale, and general sector trends."
+            ),
+            "teaser_financials": (
+                f"Write a brief summary of the financial profile for this anonymous target. "
+                "Highlight revenue scale and margin profile without revealing the exact name."
+            ),
         }
 
         instruction = section_instructions.get(section, f"Write a professional CIM section for {section}.")
@@ -634,6 +662,48 @@ Instructions: {instruction}
 Return ONLY the prose text (no JSON). Write 3-5 substantial paragraphs.
 Use professional investment banking language. Be specific with data points from the documents.
 Do not include section headers. Do not use bullet points — write in flowing paragraphs.
+""".strip()
+
+    @staticmethod
+    def build_teaser_prompt(
+        deal_info: dict,
+        doc_context: str,
+        dcf_result: dict,
+        project_codename: str,
+    ) -> str:
+        industry = deal_info.get("industry", "the target sector")
+        dcf_summary = json.dumps(dcf_result or {}, default=str)[:12000]
+        return f"""
+You are drafting a one-page blind teaser for {project_codename}, a company in {industry}.
+
+Absolute confidentiality constraints:
+- Do NOT mention the real company name.
+- Do NOT mention customer names, founder names, exact addresses, exact plant locations, CINs, or unique identifiers.
+- Use rounded financials only, e.g. "revenue of approximately INR 2,800 Cr".
+- Use the project codename "{project_codename}" wherever a name is needed.
+
+--- Document Context ---
+{doc_context[:50000]}
+---
+
+--- Valuation / Financial Context ---
+{dcf_summary}
+---
+
+Return ONLY valid JSON:
+{{
+  "investment_highlights": [
+    "<5-6 concise buyer-facing bullets with no identifying names>"
+  ],
+  "financial_snapshot": {{
+    "revenue": "<rounded revenue scale>",
+    "ebitda_margin": "<rounded margin range>",
+    "growth": "<rounded growth profile>",
+    "cash_flow": "<rounded cash-flow note>"
+  }},
+  "transaction_overview": "<short paragraph describing the process and buyer opportunity>",
+  "contact": "AIBAA Investment Banking Team"
+}}
 """.strip()
 
     @staticmethod
@@ -673,6 +743,167 @@ Extract all action items, decisions, and follow-ups. Return ONLY valid JSON:
     }}
   ],
   "next_steps": ["<next step 1>", "<next step 2>", "<next step 3>"]
+}}
+""".strip()
+
+    @staticmethod
+    def build_comps_prompt(deal_info: dict, doc_context: str, financial_snapshot: dict | None = None) -> str:
+        company = deal_info.get("company_name", "the target company")
+        industry = deal_info.get("industry", "Technology")
+        snapshot = json.dumps(financial_snapshot or {}, indent=2, default=str)
+
+        return f"""
+You are building a Comparable Companies Analysis and Precedent Transactions screen for {company} ({industry}).
+
+--- Document Context ---
+{doc_context[:60000]}
+---
+
+--- Target Financial Snapshot (from prior extraction, may be empty) ---
+{snapshot}
+---
+
+Select 5-8 trading comparables and 3-5 precedent transactions relevant to this target.
+Prefer Indian listed peers (NSE/BSE) where the target is Indian; include global peers when the
+sector is globally benchmarked (IT services, SaaS, pharma). Use realistic multiple ranges for
+the sector as of your knowledge; mark every multiple as an ESTIMATE — these will be presented
+as analyst-judgment placeholders pending live market data.
+
+Return ONLY valid JSON:
+{{
+  "peer_selection_rationale": "<paragraph explaining the screening criteria>",
+  "trading_comps": [
+    {{
+      "company": "<peer name>",
+      "ticker": "<ticker or 'private'>",
+      "country": "<country>",
+      "ev_ebitda": <estimated multiple>,
+      "ev_revenue": <estimated multiple>,
+      "pe": <estimated multiple or null>,
+      "rationale": "<why this peer is comparable>"
+    }}
+  ],
+  "precedent_transactions": [
+    {{
+      "target": "<acquired company>",
+      "acquirer": "<buyer>",
+      "year": <announcement year>,
+      "ev_ebitda": <estimated transaction multiple or null>,
+      "ev_revenue": <estimated transaction multiple or null>,
+      "deal_rationale": "<strategic logic of that deal>"
+    }}
+  ],
+  "recommended_multiple_band": {{
+    "metric": "EV/EBITDA",
+    "bear": <number>,
+    "base": <number>,
+    "bull": <number>,
+    "justification": "<why this band, citing the peer set>"
+  }},
+  "control_premium_pct": <decimal e.g. 0.25 or null>,
+  "caveats": ["<caveat 1>", "<caveat 2>"]
+}}
+""".strip()
+
+    @staticmethod
+    def build_merger_model_prompt(deal_info: dict, doc_context: str, parameters: dict) -> str:
+        company = deal_info.get("company_name", "the target company")
+
+        return f"""
+You are preparing inputs for a merger consequence (accretion/dilution) model where {company} is the TARGET.
+
+--- Document Context ---
+{doc_context[:70000]}
+---
+
+User-provided deal parameters (override extracted values when present):
+- Acquirer Name: {parameters.get('acquirer_name', 'not specified')}
+- Offer Price / Premium: {parameters.get('offer_premium_pct', 'not specified')}
+- Cash / Stock Mix: {parameters.get('cash_pct', 'not specified')} cash
+- Cost of Debt for cash financing: {parameters.get('cost_of_debt', 'not specified')}
+- Pre-tax Synergies (annual): {parameters.get('annual_synergies', 'not specified')}
+
+Extract / estimate the inputs below. All monetary values in absolute INR. Use null for anything
+not found — do NOT invent acquirer financials if no acquirer data is in the documents.
+
+Return ONLY valid JSON:
+{{
+  "target": {{
+    "net_income": <number_or_null>,
+    "shares_outstanding": <number_or_null>,
+    "eps": <number_or_null>,
+    "net_debt": <number_or_null>,
+    "ebitda_ltm": <number_or_null>
+  }},
+  "acquirer": {{
+    "name": "<string_or_null>",
+    "net_income": <number_or_null>,
+    "shares_outstanding": <number_or_null>,
+    "eps": <number_or_null>,
+    "share_price": <number_or_null>,
+    "pe": <number_or_null>
+  }},
+  "assumptions": {{
+    "offer_premium_pct": <decimal, default 0.25 if unspecified>,
+    "cash_pct": <decimal, default 0.50>,
+    "stock_pct": <decimal, default 0.50>,
+    "cost_of_debt_pretax": <decimal, default 0.09>,
+    "tax_rate": <decimal, default 0.25>,
+    "annual_pretax_synergies": <number, default 0>,
+    "synergies_phase_in": [<yr1 decimal>, <yr2 decimal>, <yr3 decimal>]
+  }},
+  "extraction_confidence": <0.0-1.0>,
+  "notes": "<key caveats: missing acquirer data, estimated fields, etc.>"
+}}
+""".strip()
+
+    @staticmethod
+    def build_investment_memo_prompt(
+        deal_info: dict,
+        doc_context: str,
+        valuation_summary: dict | None,
+        dd_summary: dict | None,
+        comps_summary: dict | None,
+    ) -> str:
+        company = deal_info.get("company_name", "the target company")
+        deal_type = deal_info.get("deal_type", "M&A")
+        industry = deal_info.get("industry", "")
+
+        return f"""
+You are writing an Investment Committee (IC) memorandum for {company} ({deal_type}, {industry}).
+
+--- Document Context ---
+{doc_context[:50000]}
+---
+
+--- DCF Valuation Summary (may be empty) ---
+{json.dumps(valuation_summary or {}, indent=2, default=str)[:8000]}
+
+--- Due Diligence Summary (may be empty) ---
+{json.dumps(dd_summary or {}, indent=2, default=str)[:8000]}
+
+--- Comps Summary (may be empty) ---
+{json.dumps(comps_summary or {}, indent=2, default=str)[:8000]}
+
+Write a complete, decision-ready IC memo. Be balanced: present the bear case honestly.
+Return ONLY valid JSON with prose paragraphs as string values:
+{{
+  "deal_snapshot": {{
+    "company": "{company}",
+    "transaction": "<one-line transaction description>",
+    "recommendation": "PROCEED" | "PROCEED_WITH_CONDITIONS" | "DECLINE",
+    "conviction": "HIGH" | "MEDIUM" | "LOW"
+  }},
+  "executive_summary": "<3-4 paragraph summary with the recommendation up front>",
+  "investment_thesis": ["<thesis point 1>", "<thesis point 2>", "<thesis point 3>"],
+  "valuation_view": "<2-3 paragraphs reconciling DCF and comps views, with a recommended value range>",
+  "key_risks": [
+    {{"risk": "<risk>", "severity": "high|medium|low", "mitigant": "<mitigant>"}}
+  ],
+  "diligence_summary": "<2 paragraphs on DD findings and what remains open>",
+  "deal_structure_considerations": "<paragraph on structure, financing, conditions precedent>",
+  "conditions_to_proceed": ["<condition 1>", "<condition 2>"],
+  "next_steps": ["<step 1>", "<step 2>", "<step 3>"]
 }}
 """.strip()
 

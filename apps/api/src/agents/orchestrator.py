@@ -11,8 +11,14 @@ class OrchestratorAgent(BaseAgent):
         "pitchbook":     {"generate_pitchbook"},
         "due_diligence": {"dd_report"},
         "research":      {"industry_brief", "buyer_universe"},
-        "doc_drafter":   {"cim_draft"},
-        "coordination":  {"extract_tasks"},
+        "doc_drafter":   {"cim_draft", "teaser_draft"},
+        "coordination":  {"extract_tasks", "process_status"},
+        "comps":         {"comps_analysis"},
+        "merger_model":  {"accretion_dilution"},
+        "memo_writer":   {"investment_memo", "football_field"},
+        "football_field": {"football_field"},
+        "three_statement": {"three_statement_model"},
+        "autopilot":     {"full_deal_package"},
     }
 
     TASK_ALIASES = {
@@ -42,10 +48,42 @@ class OrchestratorAgent(BaseAgent):
         "cim": "cim_draft",
         "memo": "cim_draft",
         "information_memo": "cim_draft",
+        "teaser": "teaser_draft",
+        "one_pager": "teaser_draft",
+        "blind_profile": "teaser_draft",
         # Coordination
         "tasks": "extract_tasks",
         "meeting_notes": "extract_tasks",
         "action_items": "extract_tasks",
+        "process_status": "process_status",
+        "blockers": "process_status",
+        # Comps
+        "comps": "comps_analysis",
+        "comparables": "comps_analysis",
+        "trading_comps": "comps_analysis",
+        "precedent_transactions": "comps_analysis",
+        # Merger model
+        "merger": "accretion_dilution",
+        "merger_model": "accretion_dilution",
+        "accretion": "accretion_dilution",
+        "accretion_dilution_model": "accretion_dilution",
+        # IC memo
+        "ic_memo": "investment_memo",
+        "committee_memo": "investment_memo",
+        "deal_memo": "investment_memo",
+        # Football field
+        "football_field": "football_field",
+        "valuation_summary": "football_field",
+        "football": "football_field",
+        # Three statement
+        "three_statement": "three_statement_model",
+        "three_statement_model": "three_statement_model",
+        "operating_model": "three_statement_model",
+        # Autopilot
+        "autopilot": "full_deal_package",
+        "full_package": "full_deal_package",
+        "deal_package": "full_deal_package",
+        "run_everything": "full_deal_package",
     }
 
     TASK_TO_AGENT_HINTS = {
@@ -74,10 +112,34 @@ class OrchestratorAgent(BaseAgent):
         # CIM
         "cim_draft": "doc_drafter",
         "cim": "doc_drafter",
+        "teaser_draft": "doc_drafter",
+        "teaser": "doc_drafter",
         # Coordination
         "extract_tasks": "coordination",
+        "process_status": "coordination",
         "tasks": "coordination",
         "meeting_notes": "coordination",
+        # Comps
+        "comps_analysis": "comps",
+        "comps": "comps",
+        "comparables": "comps",
+        # Merger model
+        "accretion_dilution": "merger_model",
+        "merger": "merger_model",
+        "accretion": "merger_model",
+        # IC memo
+        "investment_memo": "memo_writer",
+        "ic_memo": "memo_writer",
+        # Football field
+        "football_field": "memo_writer",
+        "valuation_summary": "memo_writer",
+        # Three statement
+        "three_statement_model": "three_statement",
+        "three_statement": "three_statement",
+        # Autopilot
+        "full_deal_package": "autopilot",
+        "autopilot": "autopilot",
+        "deal_package": "autopilot",
     }
 
     def __init__(self, deal_id: str, input_payload: Dict[str, Any], run_id: str | None = None):
@@ -101,6 +163,8 @@ class OrchestratorAgent(BaseAgent):
 
     @classmethod
     def _infer_agent_from_task(cls, task_name: str) -> Optional[str]:
+        if task_name in cls.TASK_TO_AGENT_HINTS:
+            return cls.TASK_TO_AGENT_HINTS[task_name]
         for key, agent in cls.TASK_TO_AGENT_HINTS.items():
             if key in task_name:
                 return agent

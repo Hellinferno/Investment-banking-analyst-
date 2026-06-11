@@ -25,9 +25,10 @@ _OUTPUT_DIR = str(Path(__file__).resolve().parent.parent.parent.parent / "data" 
 
 class CoordinationAgent(BaseAgent):
     def __init__(self, deal_id: str, input_payload: dict, run_id: str | None = None):
+        task_name = input_payload.get("task_name", "extract_tasks")
         super().__init__(
             agent_type="coordination",
-            task_name="extract_tasks",
+            task_name=task_name,
             deal_id=deal_id,
             input_payload=input_payload,
             run_id=run_id,
@@ -36,6 +37,12 @@ class CoordinationAgent(BaseAgent):
 
     def run(self) -> str:
         try:
+            if self.task_name == "process_status":
+                status = self._build_process_status()
+                self.update_payload("process_status_result", status)
+                self.complete(confidence=0.95)
+                return self.run_id
+
             self.think("Loading all deal documents for task extraction and coordination.")
             doc_context = self._extract_document_context()
             deal_info = self._get_deal_info()
@@ -75,6 +82,53 @@ class CoordinationAgent(BaseAgent):
             self.fail(str(exc))
 
         return self.run_id
+
+    def _build_process_status(self) -> dict:
+        from database import SessionLocal, ensure_database_ready
+        from db_models import DealModel, OutputModel, TaskModel
+
+        ensure_database_ready()
+        with SessionLocal() as db:
+            deal = db.get(DealModel, self.deal_id)
+            outputs = db.query(OutputModel).filter(OutputModel.deal_id == self.deal_id).all()
+            tasks = db.query(TaskModel).filter(TaskModel.deal_id == self.deal_id).all()
+
+        stage = getattr(deal, "process_stage", "origination") if deal else "origination"
+        approved = {o.output_category for o in outputs if o.review_status == "approved"}
+        drafted = {o.output_category for o in outputs}
+        open_tasks = [t for t in tasks if getattr(t, "status", "todo") not in {"done", "completed"}]
+
+        blockers: list[str] = []
+        if stage in {"origination", "teaser"} and "teaser" not in approved:
+            blockers.append("Blind teaser is not approved.")
+        if stage in {"nda", "cim"} and "cim" not in approved:
+            blockers.append("CIM is not approved.")
+        if stage in {"diligence", "close"} and open_tasks:
+            blockers.append(f"{len(open_tasks)} diligence or process task(s) remain open.")
+        if "due_diligence" in drafted and "due_diligence" not in approved:
+            blockers.append("Due diligence report exists but is not approved.")
+
+        next_stage = {
+            "origination": "teaser",
+            "teaser": "nda",
+            "nda": "cim",
+            "cim": "ioi",
+            "ioi": "management_meetings",
+            "management_meetings": "loi",
+            "loi": "diligence",
+            "diligence": "close",
+            "close": "close",
+        }.get(stage, "teaser")
+
+        return {
+            "current_stage": stage,
+            "next_stage": next_stage,
+            "ready_for_next_stage": not blockers,
+            "blockers": blockers,
+            "open_task_count": len(open_tasks),
+            "approved_output_categories": sorted(approved),
+            "draft_output_categories": sorted(drafted),
+        }
 
     def _parse_tasks_data(self, raw: str) -> dict:
         match = re.search(r"\{[\s\S]*\}", raw.strip())

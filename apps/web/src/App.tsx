@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import SettingsPage from './pages/SettingsPage';
 import Dashboard from './pages/Dashboard';
 import DealWorkspace from './pages/DealWorkspace';
+import { ReviewQueueTab } from './components/workspace/ReviewQueueTab';
 import { useEffect } from 'react';
 import { api } from './lib/api';
 
@@ -63,6 +64,18 @@ function BootstrappedApp() {
           <AuthGuard>
             <AppShell>
               <SettingsPage />
+            </AppShell>
+          </AuthGuard>
+        }
+      />
+      <Route
+        path="/review-queue"
+        element={
+          <AuthGuard>
+            <AppShell>
+              <div className="h-full bg-white">
+                  <ReviewQueueTab />
+              </div>
             </AppShell>
           </AuthGuard>
         }
