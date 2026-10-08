@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import uuid
 from pathlib import Path
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -11,9 +12,9 @@ logger = logging.getLogger(__name__)
 _UNSAFE_CHARS = re.compile(r"[^a-z0-9_\-]")
 
 # Canonical output directory: apps/data/outputs (4 levels up from this file)
-_DEFAULT_OUTPUT_DIR = str(
-    Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs"
-)
+from config import OUTPUT_ROOT
+
+_DEFAULT_OUTPUT_DIR = str(OUTPUT_ROOT)
 
 
 class WorkbookBuilder:
@@ -387,7 +388,7 @@ class WorkbookBuilder:
             
         # Save File
         safe_name = _UNSAFE_CHARS.sub("_", deal_name.strip().lower().replace(" ", "_"))[:60]
-        filename = f"dcf_model_{safe_name}.xlsx"
+        filename = f"dcf_model_{safe_name}_{uuid.uuid4().hex}.xlsx"
         filepath = os.path.join(self.output_dir, filename)
         # Guard: ensure path stays within output_dir
         if not os.path.abspath(filepath).startswith(self.output_dir):
@@ -515,7 +516,7 @@ class WorkbookBuilder:
 
         # Save
         safe_name = _UNSAFE_CHARS.sub("_", deal_name.strip().lower().replace(" ", "_"))[:60]
-        filename = f"dd_checklist_{safe_name}.xlsx"
+        filename = f"dd_checklist_{safe_name}_{uuid.uuid4().hex}.xlsx"
         filepath = os.path.join(self.output_dir, filename)
         if not os.path.abspath(filepath).startswith(self.output_dir):
             raise ValueError(f"Output path escapes output_dir: {filepath}")
@@ -767,7 +768,7 @@ class WorkbookBuilder:
 
         # Save
         safe_name = _UNSAFE_CHARS.sub("_", deal_name.strip().lower().replace(" ", "_"))[:60]
-        filename = f"lbo_model_{safe_name}.xlsx"
+        filename = f"lbo_model_{safe_name}_{uuid.uuid4().hex}.xlsx"
         filepath = os.path.join(self.output_dir, filename)
         if not os.path.abspath(filepath).startswith(self.output_dir):
             raise ValueError(f"Output path escapes output_dir: {filepath}")

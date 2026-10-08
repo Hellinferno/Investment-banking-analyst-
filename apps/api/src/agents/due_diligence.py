@@ -1,115 +1,34 @@
-"""
-DueDiligenceAgent — produces a risk assessment report + Excel checklist.
-
-Outputs:
-  1. JSON risk assessment file (.json)
-  2. Excel DD checklist workbook (.xlsx)
-"""
-from __future__ import annotations
-
-import json
-import logging
-import os
-import re
-from datetime import datetime
-from pathlib import Path
-
+"""External due diligence discovery; no risk verdicts inferred from search results."""
 from agents.base import BaseAgent
-from agents.prompt_builder import PromptBuilder
-from engine.llm import ask_llm
-
-logger = logging.getLogger(__name__)
-
-_OUTPUT_DIR = str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs")
+from tools.research_evidence import ResearchParameters, build_report, collect_evidence
+from tools.research_export import export_research
+from tools.serpapi_client import SearchError
 
 
 class DueDiligenceAgent(BaseAgent):
     def __init__(self, deal_id: str, input_payload: dict):
-        super().__init__(
-            agent_type="due_diligence",
-            task_name="dd_report",
-            deal_id=deal_id,
-            input_payload=input_payload,
-        )
-        self.system_prompt = PromptBuilder.get_system_prompt("due_diligence")
+        super().__init__("due_diligence", "dd_report", deal_id, input_payload)
 
     def run(self) -> str:
         try:
-            self.think("Loading all deal documents for due diligence risk analysis.")
-            doc_context = self._extract_document_context()
-            deal_info = self._get_deal_info()
-            deal_name = deal_info.get("deal_name", "Deal")
-
-            if not doc_context.strip():
-                self.think("No parsed documents found — generating risk assessment from deal metadata only.")
-
-            self.act("ask_llm", "performing due diligence risk analysis via LLM")
-            prompt = PromptBuilder.build_dd_prompt(doc_context)
-            raw = ask_llm(self.system_prompt, prompt)
-
-            self.observe(f"LLM response received ({len(raw)} chars). Parsing risk data.")
-            risk_data = self._parse_risk_data(raw)
-
-            os.makedirs(_OUTPUT_DIR, exist_ok=True)
-            date_str = datetime.now().strftime("%Y%m%d")
-            safe_name = re.sub(r"[^\w\-]", "_", deal_name)
-
-            # Output 1: JSON risk assessment
-            self.act("file_writer", "writing JSON risk assessment")
-            json_filename = f"{safe_name}_DD_RiskAssessment_{date_str}.json"
-            json_path = os.path.join(_OUTPUT_DIR, json_filename)
-            with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(risk_data, f, indent=2, ensure_ascii=False)
-            self._register_output(json_path, output_type="json", output_category="due_diligence")
-            self.observe(f"JSON risk assessment written: {json_filename}")
-
-            # Output 2: Excel checklist
-            self.act("excel_writer", "generating DD checklist Excel workbook")
-            from tools.excel_writer import WorkbookBuilder
-            wb = WorkbookBuilder()
-            excel_path = wb.write_dd_checklist(deal_name, risk_data)
-            self._register_output(excel_path, output_type="xlsx", output_category="due_diligence")
-            self.observe(f"Excel checklist written: {os.path.basename(excel_path)}")
-
-            overall_score = risk_data.get("overall_risk_score", 0)
-            red_flag_count = len(risk_data.get("red_flags", []))
-            self.think(
-                f"DD complete. Risk score: {overall_score}/10. "
-                f"Red flags: {red_flag_count}. Rating: {risk_data.get('risk_rating', 'MEDIUM')}."
-            )
-
-            confidence = 0.85 if doc_context.strip() else 0.50
-            self.complete(confidence=confidence)
-
-        except Exception as exc:
-            logger.exception("DueDiligenceAgent failed for deal %s", self.deal_id)
+            params = ResearchParameters.model_validate(self.input_payload.get("parameters", {}))
+            deal = self._get_deal_info()
+            self.act("serpapi", "Searching public filings and reported developments for analyst review.")
+            evidence = collect_evidence(deal.get("company_name", ""), deal.get("industry", ""), params, diligence=True)
+            self.update_payload("research_evidence", evidence)
+            report = build_report(evidence, synthesize=params.synthesize, diligence=True)
+            report["warnings"].append("Reported allegations are unverified. This is a review checklist, not a legal or risk determination.")
+            self.update_payload("research_report", report)
+            for path, kind in export_research(deal.get("company_name", "Company"), self.run_id, evidence, report, diligence=True):
+                self._register_output(path, kind, "due_diligence")
+            if not evidence["sources"]:
+                self.fail("No usable diligence sources. No risk assessment was made.")
+            else:
+                self.complete(confidence=None)
+        except SearchError as exc:
             self.fail(str(exc))
-
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Diligence export or processing failed for run %s", self.run_id)
+            self.fail("Diligence discovery could not finish. Check backend configuration and server logs.")
         return self.run_id
-
-    def _parse_risk_data(self, raw: str) -> dict:
-        """Extract JSON from LLM response with fallback."""
-        text = raw.strip()
-        match = re.search(r"\{[\s\S]*\}", text)
-        if match:
-            try:
-                data = json.loads(match.group(0))
-                # Clamp score to 0-10
-                score = data.get("overall_risk_score", 5)
-                data["overall_risk_score"] = max(0.0, min(10.0, float(score)))
-                return data
-            except (json.JSONDecodeError, ValueError):
-                pass
-
-        logger.warning("DueDiligenceAgent: could not parse LLM JSON, using fallback structure.")
-        return {
-            "overall_risk_score": 5.0,
-            "risk_rating": "MEDIUM",
-            "financial_risks": [{"risk": "Unable to parse structured risks", "severity": "medium", "evidence": raw[:300], "mitigation": "Manual review required"}],
-            "operational_risks": [],
-            "legal_risks": [],
-            "market_risks": [],
-            "red_flags": [],
-            "positive_factors": [],
-            "summary": "Automated parsing failed. Please review raw LLM output manually.",
-        }

@@ -20,7 +20,9 @@ from engine.llm import ask_llm
 
 logger = logging.getLogger(__name__)
 
-_OUTPUT_DIR = str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs")
+from config import OUTPUT_ROOT
+
+_OUTPUT_DIR = str(OUTPUT_ROOT)
 
 
 class CoordinationAgent(BaseAgent):
@@ -60,7 +62,7 @@ class CoordinationAgent(BaseAgent):
             os.makedirs(_OUTPUT_DIR, exist_ok=True)
             date_str = datetime.now().strftime("%Y%m%d")
             safe_name = re.sub(r"[^\w\-]", "_", deal_name)
-            md_filename = f"{safe_name}_MeetingSummary_{date_str}.md"
+            md_filename = f"{safe_name}_MeetingSummary_{date_str}_{self.run_id}.md"
             md_path = os.path.join(_OUTPUT_DIR, md_filename)
 
             self._write_markdown_summary(md_path, deal_info, tasks_data)

@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 
 def _load_env_files() -> None:
     """Load env files from stable project locations instead of relying on CWD."""
+    from config import REPO_ROOT
     env_candidates = [
         Path(__file__).resolve().parents[2] / ".env",
+        REPO_ROOT / ".env",
         Path.cwd() / ".env",
     ]
 
@@ -39,7 +41,7 @@ NVIDIA_FALLBACK_ENABLED = os.environ.get("NVIDIA_FALLBACK_ENABLED", "true").lowe
 }
 
 # Primary Client: Gemini (only if key exists)
-gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+gemini_client = genai.Client(api_key=GEMINI_API_KEY, http_options=types.HttpOptions(timeout=45000)) if GEMINI_API_KEY else None
 
 # Fallback Client: NVIDIA OpenAI endpoint (DeepSeek)
 nvidia_client = (

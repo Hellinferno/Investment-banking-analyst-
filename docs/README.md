@@ -4,6 +4,8 @@ This folder mixes current implementation notes with forward-looking design docum
 
 ## Good Starting Points
 
+- [SERPAPI.md](SERPAPI.md): implemented search, evidence, exports, limits, and API parameters
+- [HACKATHON.md](HACKATHON.md): contribution disclosure and demo sequence
 - [04-system-architecture.md](04-system-architecture.md): system-level architecture and major backend/frontend responsibilities
 - [06-api-contracts.md](06-api-contracts.md): API surface and request/response expectations
 - [10-development-phases.md](10-development-phases.md): roadmap and phased delivery context

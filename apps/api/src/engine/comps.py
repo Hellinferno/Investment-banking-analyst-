@@ -47,6 +47,8 @@ class ComparableAnalysisEngine:
 
         return {
             "method": "ev_ebitda_comps",
+            "data_basis": "illustrative_sector_assumptions",
+            "warning": "Preset sector multiples; not live comparable-company market data.",
             "industry": industry or "Unknown",
             "multiple_band": {"bear": bear_mult, "base": base_mult, "bull": bull_mult},
             "latest_ebitda": latest_ebitda,

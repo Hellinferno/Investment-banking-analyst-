@@ -1325,9 +1325,7 @@ class FinancialModelingAgent(BaseAgent):
         )
 
         if extraction_checkpoint.get("status") == "failed" and has_uploaded_documents:
-            run_record = store.agent_runs.get(self.run_id)
-            if run_record:
-                run_record.input_payload["extraction_checkpoint"] = extraction_checkpoint
+            self.update_payload("extraction_checkpoint", extraction_checkpoint)
             issue_summary = "; ".join(extraction_checkpoint.get("blocking_issues", [])[:4])
             self.fail(
                 "Extraction checkpoint failed. Required values from documents are incomplete or inconsistent. "
@@ -2334,6 +2332,7 @@ class FinancialModelingAgent(BaseAgent):
             }
 
             warnings = list(valuation_data.get("warnings", []))
+            warnings.append(comps_snapshot["warning"])
             if is_loss_making:
                 warnings.append(f"NEGATIVE EBITDA MARGIN ({avg_margin * 100:.1f}%): company is loss-making.")
             if fallback_mode:
@@ -2499,9 +2498,7 @@ class FinancialModelingAgent(BaseAgent):
             )
             store.outputs[new_output.id] = new_output
 
-            run_record = store.agent_runs.get(self.run_id)
-            if run_record:
-                run_record.input_payload["valuation_result"] = valuation_result
+            self.update_payload("valuation_result", valuation_result)
 
             self.complete(confidence=0.95 if llm_data else 0.6)
         except Exception as exc:

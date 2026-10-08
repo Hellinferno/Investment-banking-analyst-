@@ -11,7 +11,9 @@ from models import APIResponse, Meta, OutputReviewUpdate
 from persistence import add_output_review_event, sync_output_to_store
 from store import store
 
-_OUTPUT_BASE = Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs"
+from config import OUTPUT_ROOT, UPLOAD_ROOT
+
+_OUTPUT_BASE = OUTPUT_ROOT
 
 deal_router = APIRouter(prefix="/deals", tags=["Outputs"])
 output_router = APIRouter(prefix="/outputs", tags=["Outputs"])
@@ -126,7 +128,7 @@ async def download_output(
         raise HTTPException(status_code=409, detail="Output must be approved before download")
 
     file_path = Path(output_record.storage_path).resolve()
-    upload_base = Path(__file__).resolve().parent.parent.parent.parent / "data" / "uploads"
+    upload_base = UPLOAD_ROOT
     allowed_roots = (_OUTPUT_BASE.resolve(), upload_base.resolve())
 
     def _within(fp: Path, root: Path) -> bool:

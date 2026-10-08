@@ -11,7 +11,7 @@ _src_path = str(Path(__file__).resolve().parent.parent / "src")
 if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
 
-from database import Base  # noqa: E402
+from database import Base, SQLALCHEMY_DATABASE_URL  # noqa: E402
 import db_models  # noqa: E402, F401 — registers all ORM models with Base
 
 config = context.config
@@ -21,10 +21,9 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Allow DATABASE_URL env var to override alembic.ini sqlalchemy.url
-_db_url = os.environ.get("DATABASE_URL")
-if _db_url:
-    config.set_main_option("sqlalchemy.url", _db_url)
+# CLI migrations and the API must point at the same database, including the
+# absolute SQLite default and dotenv-loaded overrides.
+config.set_main_option("sqlalchemy.url", SQLALCHEMY_DATABASE_URL.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

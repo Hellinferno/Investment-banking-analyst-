@@ -1,10 +1,11 @@
 import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from threading import BoundedSemaphore
 from typing import Any, Callable, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from db_models import AgentRunModel, DealModel, DocumentModel
@@ -27,11 +28,14 @@ from agents.research import ResearchAgent
 from agents.doc_drafter import DocDrafterAgent
 from agents.coordination import CoordinationAgent
 from database import SessionLocal
+from tools.research_evidence import ResearchParameters, research_mode
+from tools.serpapi_client import SerpApiClient, SearchError
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/deals", tags=["Agents"])
 
 _agent_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="agent_run")
+_agent_slots = BoundedSemaphore(4)
 
 
 class AgentRunPayload(BaseModel):
@@ -58,6 +62,8 @@ def _serialize_run(run_record) -> dict:
         "steps": _sanitize_reasoning_steps(run_record.reasoning_steps),
         "valuation_result": payload.get("valuation_result"),
         "lbo_result": payload.get("lbo_result"),
+        "research_evidence": payload.get("research_evidence"),
+        "research_report": payload.get("research_report"),
         "error_message": run_record.error_message,
         "confidence_score": run_record.confidence_score,
     }
@@ -78,7 +84,7 @@ AGENT_DISPATCH_MAP: dict[tuple[str, str], Any] = {
 }
 
 
-def _execute_agent_run(agent: BaseAgent) -> None:
+def _execute_agent_run(agent: BaseAgent, release_slot: bool = True) -> None:
     """Generic background executor for any BaseAgent subclass."""
     db = SessionLocal()
     try:
@@ -86,14 +92,17 @@ def _execute_agent_run(agent: BaseAgent) -> None:
         persist_run_bundle(db, agent.run_id)
     except Exception:
         logger.exception("Background agent execution failed for run %s", agent.run_id)
+        agent.fail("Agent execution failed. Check server logs and start a new run.")
         persist_run_bundle(db, agent.run_id)
     finally:
         db.close()
+        if release_slot:
+            _agent_slots.release()
 
 
 def _execute_modeling_run(agent: FinancialModelingAgent) -> None:
     """Kept for backward compatibility — delegates to generic executor."""
-    _execute_agent_run(agent)
+    _execute_agent_run(agent, release_slot=False)
 
 
 def _ensure_documents_ready_for_run(db: Session, deal_id: str) -> None:
@@ -131,6 +140,24 @@ async def dispatch_agent(
 
     sync_deal_to_store(deal)
 
+    decision, route_error = OrchestratorAgent._build_route_decision(payload.agent_type, payload.task_name)
+    if route_error:
+        raise HTTPException(status_code=422, detail=route_error)
+    is_research = decision["target_agent"] in {"research", "due_diligence"}
+    if is_research:
+        try:
+            params = ResearchParameters.model_validate(payload.parameters)
+            payload.parameters = params.model_dump()
+            if research_mode() == "live" and not SerpApiClient().api_key:
+                raise SearchError("missing_key", "Set SERPAPI_API_KEY in the backend environment to run live research.")
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.errors(include_context=False)) from None
+        except SearchError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from None
+
+    if db.query(AgentRunModel).filter(AgentRunModel.deal_id == deal_id, AgentRunModel.status == "running").first():
+        raise HTTPException(status_code=409, detail="A run is already active for this deal. Wait for it to finish.")
+
     try:
         orchestrator = OrchestratorAgent(
             deal_id=deal_id,
@@ -155,14 +182,24 @@ async def dispatch_agent(
 
         route_key = (target_agent, target_task)
         if route_key in AGENT_DISPATCH_MAP:
-            _ensure_documents_ready_for_run(db, deal_id)
+            if not is_research:
+                _ensure_documents_ready_for_run(db, deal_id)
             specialized_payload = payload.model_dump()
             specialized_payload["agent_type"] = target_agent
             specialized_payload["task_name"] = target_task
-            specialized_agent = AGENT_DISPATCH_MAP[route_key](deal_id, specialized_payload)
-            with SessionLocal() as persist_db:
-                persist_run_bundle(persist_db, specialized_agent.run_id)
-            _agent_pool.submit(_execute_agent_run, specialized_agent)
+            if not _agent_slots.acquire(blocking=False):
+                raise HTTPException(status_code=429, detail="Agent queue is full. Retry after a running task finishes.")
+            specialized_agent = None
+            try:
+                specialized_agent = AGENT_DISPATCH_MAP[route_key](deal_id, specialized_payload)
+                with SessionLocal() as persist_db:
+                    persist_run_bundle(persist_db, specialized_agent.run_id)
+                _agent_pool.submit(_execute_agent_run, specialized_agent)
+            except Exception:
+                _agent_slots.release()
+                if specialized_agent is not None:
+                    specialized_agent.fail("The agent could not be queued. Start a new run.")
+                raise
 
             run_record = store.agent_runs.get(specialized_agent.run_id)
             return APIResponse(
@@ -255,15 +292,6 @@ async def get_agent_run(
 
     return APIResponse(
         success=True,
-        data={
-            "run_id": db_run.id,
-            "status": db_run.status,
-            "steps": [],
-            "valuation_result": (db_run.input_payload or {}).get("valuation_result"),
-            "lbo_result": (db_run.input_payload or {}).get("lbo_result"),
-            "error_message": db_run.error_message,
-            "confidence_score": db_run.confidence_score,
-            "route": (db_run.input_payload or {}).get("route_decision", {}),
-        },
+        data={**_serialize_run(db_run), "route": (db_run.input_payload or {}).get("route_decision", {})},
         meta=Meta(request_id=f"req_{uuid.uuid4().hex[:8]}"),
     )
