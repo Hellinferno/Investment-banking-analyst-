@@ -22,7 +22,9 @@ from engine.llm import ask_llm
 
 logger = logging.getLogger(__name__)
 
-_OUTPUT_DIR = str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs")
+from config import OUTPUT_ROOT
+
+_OUTPUT_DIR = str(OUTPUT_ROOT)
 
 
 class PitchbookAgent(BaseAgent):
@@ -58,7 +60,7 @@ class PitchbookAgent(BaseAgent):
             os.makedirs(_OUTPUT_DIR, exist_ok=True)
             date_str = datetime.now().strftime("%Y%m%d")
             safe_name = re.sub(r"[^\w\-]", "_", deal_name)
-            filename = f"{safe_name}_Pitchbook_{date_str}.pdf"
+            filename = f"{safe_name}_Pitchbook_{date_str}_{self.run_id}.pdf"
             pdf_path = os.path.join(_OUTPUT_DIR, filename)
 
             self._write_pdf(pdf_path, company, deal_info, sections, dcf_result)

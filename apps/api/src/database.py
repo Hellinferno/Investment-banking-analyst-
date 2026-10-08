@@ -1,16 +1,15 @@
 import os
 from threading import Lock
 
-from dotenv import load_dotenv
+from config import DATA_ROOT
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-load_dotenv()
+DATA_ROOT.mkdir(parents=True, exist_ok=True)
 
 # We default to SQLite for immediate local dev compatibility without forcing the user to spin up Docker Postgres immediately,
 # but the code is fully Postgres-ready based on the DB_URL format.
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aibaa.db")
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_ROOT / 'aibaa.db'}")
 
 # SQLite requires this connect_args flag. Postgres does not.
 connect_args = {"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}

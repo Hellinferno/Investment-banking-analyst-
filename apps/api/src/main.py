@@ -22,7 +22,8 @@ import db_models  # noqa: F401 - ensure ORM models are registered
 from database import Base, SessionLocal, engine
 from db_models import DealModel, DocumentModel
 from persistence import hydrate_store_from_db, sync_deal_to_store, sync_document_to_store
-from routers import agents, auth, deals, documents, outputs, tasks
+from routers import agents, auth, deals, documents, outputs, tasks, research
+from config import UPLOAD_ROOT
 
 # Ensure database tables are created synchronously on startup
 Base.metadata.create_all(bind=engine)
@@ -76,7 +77,7 @@ app.add_middleware(
     allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "X-Dev-API-Token"],
     max_age=600,
 )
 
@@ -87,6 +88,7 @@ app.include_router(outputs.deal_router, prefix="/api/v1")
 app.include_router(outputs.output_router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(research.router, prefix="/api/v1")
 
 
 @app.get("/api/v1/health", tags=["Health"])
@@ -98,7 +100,7 @@ async def health_check():
 # Startup: recover deals + documents from disk, then parse in background
 # ---------------------------------------------------------------------------
 
-_UPLOAD_BASE = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
+_UPLOAD_BASE = UPLOAD_ROOT
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 _ALLOWED_EXTS = {"pdf", "docx", "xlsx", "xls", "csv", "txt", "json"}
 

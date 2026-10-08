@@ -24,7 +24,9 @@ _parser_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="doc_parse")
 
 router = APIRouter(prefix="/deals/{deal_id}/documents", tags=["Documents"])
 
-_UPLOAD_BASE = Path(__file__).resolve().parent.parent.parent.parent / "data" / "uploads"
+from config import UPLOAD_ROOT
+
+_UPLOAD_BASE = UPLOAD_ROOT
 _UPLOAD_BASE.mkdir(parents=True, exist_ok=True)
 
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "150"))

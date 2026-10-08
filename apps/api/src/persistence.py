@@ -97,6 +97,12 @@ def _audit_from_model(model: ExtractionAuditModel) -> ExtractionAudit:
 
 
 def hydrate_store_from_db(db: Session) -> None:
+    # The store facade reads runs/outputs directly from the DB. Only interrupted
+    # in-process jobs and the separate extraction-audit cache need recovery.
+    for model in db.query(AgentRunModel).filter(AgentRunModel.status == "running").all():
+        model.status = "failed"
+        model.error_message = "Server restarted before this run finished. Start a new run."
+    db.commit()
     audits_by_run: dict[str, list[ExtractionAudit]] = {}
     for audit in db.query(ExtractionAuditModel).all():
         audits_by_run.setdefault(audit.agent_run_id, []).append(_audit_from_model(audit))

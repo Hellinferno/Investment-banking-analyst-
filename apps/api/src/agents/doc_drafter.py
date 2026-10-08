@@ -22,7 +22,9 @@ from engine.llm import ask_llm
 
 logger = logging.getLogger(__name__)
 
-_OUTPUT_DIR = str(Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs")
+from config import OUTPUT_ROOT
+
+_OUTPUT_DIR = str(OUTPUT_ROOT)
 
 _CIM_SECTIONS = [
     ("executive_summary", "Executive Summary"),
@@ -65,7 +67,7 @@ class DocDrafterAgent(BaseAgent):
             os.makedirs(_OUTPUT_DIR, exist_ok=True)
             date_str = datetime.now().strftime("%Y%m%d")
             safe_name = re.sub(r"[^\w\-]", "_", deal_name)
-            docx_filename = f"{safe_name}_CIM_{date_str}.docx"
+            docx_filename = f"{safe_name}_CIM_{date_str}_{self.run_id}.docx"
             docx_path = os.path.join(_OUTPUT_DIR, docx_filename)
 
             self.act("docx_writer", "writing CIM to DOCX")

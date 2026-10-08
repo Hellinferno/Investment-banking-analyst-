@@ -68,6 +68,7 @@ class BaseAgent:
         payload_copy = dict(self.run_record.input_payload)
         payload_copy[key] = value
         self.run_record.input_payload = payload_copy
+        self.input_payload = payload_copy
         self._sync_to_db()
 
     def think(self, context: str):
@@ -79,7 +80,7 @@ class BaseAgent:
     def observe(self, observation: str):
         self._log_step("observation", observation)
 
-    def complete(self, confidence: float = 0.9):
+    def complete(self, confidence: float | None = 0.9):
         self.run_record.status = "completed"
         self.run_record.confidence_score = confidence
         self._log_step("completion", "Task completed successfully.")

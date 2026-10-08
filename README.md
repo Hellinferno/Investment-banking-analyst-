@@ -1,134 +1,107 @@
-# AIBAA
+# AIBAA | SerpApi Deal Intelligence
 
-AI Investment Banking Analyst Agent is a monorepo for an analyst workflow platform built with FastAPI and React. The current tracked source of truth lives under `apps/`, with supporting design and implementation notes in `docs/` and lightweight fixtures in `tests/`.
+AI Investment Banking Analyst Agent combines public company discovery with an existing analyst workspace. The SerpApi workflow searches company filings, industry context, transactions, and recent news, then produces a source-backed research brief and diligence review checklist.
 
-This branch is intentionally cleaned for GitHub. Generated uploads, runtime spreadsheets, local databases, duplicate prototype folders, and personal one-off scripts are not committed. If a document in `docs/` describes architecture that is broader than what you see in `apps/`, treat the README and the checked-in code as the current implementation baseline.
+**Hackathon demo:** create a deal, run Company Intelligence, inspect citations and search coverage, run Diligence Discovery, and approve/download the reports. Research works without uploading private documents and without an LLM key.
 
-## Current State
+## Implemented workflows
 
-- Backend: FastAPI API with routers for deals, documents, agents, outputs, auth, and tasks.
-- Modeling engine: deterministic Python modules for DCF, LBO, comparables, triangulation, and financial statement analysis.
-- Frontend: React 19 + Vite workspace for dashboard and deal workflows.
-- Persistence: SQLite for local development, PostgreSQL via Docker Compose.
-- Document flow: file upload handling, document parsing, and startup recovery from the local uploads area.
+| Workflow | Inputs | Outputs |
+| --- | --- | --- |
+| Company Intelligence | Public company name, industry, country, optional known domain | Search evidence, cited observations, PDF and JSON |
+| Buyer Discovery | Same public metadata | Transaction/buyer mentions for review; interest is not established |
+| Diligence Discovery | Same public metadata | Public-source observations, PDF, JSON, Excel review checklist |
+| DCF / LBO | Financial documents and analyst assumptions; extraction may require an LLM key | Deterministic calculations and Excel models |
+| Other existing agents | Deal documents / model context | Pitchbook, CIM draft, meeting notes |
 
-## Repository Map
+Search uses SerpApi Google Search and Google News. Source IDs, URLs, publisher, publication date when available, query, retrieval time, search ID, and cache status are persisted with each run. Optional AI interpretation requires Gemini or NVIDIA configuration; invalid output falls back to source excerpts.
 
-```text
-.
-|-- apps/
-|   |-- api/        FastAPI backend, migrations, modeling engines, tests
-|   |-- web/        React/Vite frontend
-|   `-- data/       Local data helpers and runtime storage paths
-|-- docs/           Product, architecture, API, and delivery documentation
-|-- tests/          Shared fixtures and integration tests
-|-- .env.example    Local environment template
-|-- docker-compose.yml
-|-- Makefile
-`-- README.md
-```
+Search excerpts are discovery evidence. They do not establish financial inputs, company identity, buyer interest, or legal/risk conclusions. Existing comparable multiples are preset sector assumptions, explicitly labeled as illustrative.
 
-## Prerequisites
+## Quick start: local development
 
-- Python 3.11
-- Node.js 22 recommended
-- Docker Desktop with Compose support for the containerized stack
-- GNU Make if you want to use the repo shortcuts instead of raw commands
-
-## Clone
-
-```bash
-git clone https://github.com/Hellinferno/Investment-banking-analyst-.git
-cd Investment-banking-analyst-
-```
-
-## Quick Start
-
-### Option 1: Docker Compose
+Use Python 3.11+ and Node.js 22. Run these commands from the repository root:
 
 ```bash
 cp .env.example .env
-docker compose up --build
+cp apps/web/.env.example apps/web/.env
+python -m venv .venv
 ```
 
-Useful endpoints:
+Activate the environment:
 
-- API: `http://localhost:8000`
-- API docs: `http://localhost:8000/docs`
-- Web app: `http://localhost:3000`
+- macOS/Linux: `source .venv/bin/activate`
+- Windows PowerShell: `.venv\Scripts\Activate.ps1`
 
-If you have `make` available, `make up` wraps the same startup flow.
-
-### Option 2: Local Development
-
-Backend:
+Install dependencies and configure **SERPAPI_API_KEY in the root .env**, keeping `AIBAA_RESEARCH_MODE=live`:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r apps/api/requirements.txt
+python -m pip install -r apps/api/requirements-dev.txt
 cd apps/api
 python -m alembic upgrade head
-python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Frontend:
+In a second terminal:
 
 ```bash
 cd apps/web
-npm install
-npm run dev
+npm ci
+npm run dev -- --host 127.0.0.1
 ```
 
-Notes:
+Open http://localhost:5173. API docs: http://localhost:8000/docs.
 
-- The `Makefile` assumes a repo-root `.venv` and Windows-style `.venv\Scripts` paths.
-- `apps/web/README.md` documents the frontend dev-auth bootstrap flow.
-- Use `.env.example` as the starting point for local configuration.
+The development frontend exchanges its bootstrap token for a JWT, using the reviewer role so outputs can be approved. Development credentials are local-only. Keep SerpApi and LLM keys in the backend; never add them to a VITE variable.
 
-## Common Commands
+### Offline rehearsal
+
+Set `AIBAA_RESEARCH_MODE=demo` and restart the API. This explicitly uses synthetic fixtures with visible demo labels. It exercises research UI and exports, makes no SerpApi calls, and does not enable offline LLM generation for other agents. Use live mode for a real SerpApi demonstration.
+
+### Docker Compose
 
 ```bash
-make up          # docker compose up --build -d
-make down        # stop local containers
-make logs        # tail API logs
-make migrate     # alembic upgrade head
-make test        # backend pytest suite
-make dev-api     # local FastAPI server
-make dev-web     # local Vite server
+cp .env.example .env
+# Configure backend keys in .env
+docker compose up --build
 ```
 
-If you do not have `make`, run the underlying `docker compose`, `python`, or `npm` commands directly.
+Web: http://localhost:3000. API: http://localhost:8000.
 
-## Branch Strategy
+Compose runs PostgreSQL and a same-origin Nginx API proxy. Runtime uploads/outputs persist under apps/data; the database uses a named volume. This is a development stack, with development authentication enabled. Before public deployment, supply strong authentication/secrets, disable development bootstrap, and configure the intended origins.
 
-- `main`: cleaned public baseline
-- `develop`: integration branch for ongoing work
-- `archive/legacy-snapshot`: pre-cleanup historical snapshot
-- `feature/*`: short-lived branches for active changes
+## Research flow
 
-## Documentation
+1. Create a deal with the public company name and industry.
+2. Open Agents → Company Intelligence.
+3. Choose country and news window; optionally enter a known domain such as company.com.
+4. Confirm the public-metadata search selection and run.
+5. Review complete/partial/empty search coverage, queries, citations, and source links.
+6. Run Diligence Discovery for a source-linked Excel checklist.
+7. In Outputs, approve the draft as reviewer before downloading.
 
-Start with [docs/README.md](docs/README.md) for a guide to the documentation set.
+Uploaded documents and deal notes are excluded from search queries. If AI interpretation is selected, normalized public search excerpts are sent to the configured LLM provider. Other existing agents may send uploaded document context to an LLM.
 
-Key docs:
+## Validation
 
-- [System architecture](docs/04-system-architecture.md)
-- [API contracts](docs/06-api-contracts.md)
-- [Monorepo structure notes](docs/07-monorepo-structure.md)
-- [Development phases](docs/10-development-phases.md)
-- [Testing strategy](docs/12-testing-strategy.md)
+```bash
+python -m pytest -q
+cd apps/web
+npm run lint
+npm run build
+```
 
-## What Is Not Committed
+The default suite includes existing backend checks, offline historical modeling regressions, mocked SerpApi HTTP behavior, research persistence, exports, authentication, and tenant boundaries. It isolates its database and disables real API keys. Historical company profiles are injected only by tests; they are not live financial data.
 
-The cleaned repo keeps source, docs, and small fixtures only. These stay out of Git by default:
+CI runs backend tests and frontend lint/build. A live SerpApi key check, browser walkthrough, and container deployment check remain environment-specific validation.
 
-- uploaded source documents
-- generated Excel outputs and temporary report files
-- local SQLite databases
-- build logs and local caches
-- duplicate prototype directories
+## Structure and documentation
 
-## Contributing
+- apps/api/src: FastAPI, agents, deterministic modeling engines, evidence and export tools
+- apps/api/tests: research workflow and historical modeling regression coverage
+- apps/web: React 19 / Vite workspace
+- [SerpApi integration](docs/SERPAPI.md): search plan, API parameters, failure handling, limits
+- [Hackathon guide](docs/HACKATHON.md): existing-work disclosure, demo sequence, remaining live checks
+- [Documentation index](docs/README.md): broader design notes; some describe future functionality
 
-Open work from `develop` or a `feature/*` branch. Keep the root README aligned with the real checked-in structure whenever the repo layout or onboarding flow changes.
+Local environments, uploaded documents, generated outputs, databases, and build artifacts are ignored by Git.

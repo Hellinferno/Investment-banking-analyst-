@@ -4,6 +4,9 @@ import {
     deployAgent,
     fetchAgentRun,
     fetchDocuments,
+    fetchResearchStatus,
+    fetchAgentRuns,
+    type ResearchStatus,
     type AgentRunResult,
     type ValuationResult,
 } from '../../lib/api'
@@ -11,6 +14,7 @@ import { Play, AlertCircle, ChevronRight } from 'lucide-react'
 import DCFResultsView from './DCFResultsView'
 import LBOResultsView from './LBOResultsView'
 import ExtractionAuditPanel from './ExtractionAuditPanel'
+import ResearchResultsView from './ResearchResultsView'
 
 interface Props { dealId: string }
 
@@ -76,21 +80,25 @@ const AGENT_CONFIGS: AgentConfig[] = [
     },
     {
         id: 'dd',
-        label: 'Due Diligence',
+        label: 'Diligence Discovery',
         agentType: 'due_diligence',
         taskName: 'dd_report',
         badge: 'DD',
-        description: 'Risk assessment report · Financial → Operational → Legal → Market risks + Red Flags',
+        description: 'Public filings and reported developments · Sources → Analyst review checklist',
         params: [],
     },
     {
         id: 'research',
-        label: 'Market Research',
+        label: 'Company Intelligence',
         agentType: 'research',
         taskName: 'industry_brief',
         badge: 'Research',
-        description: 'Industry brief PDF + Buyer universe JSON · Market sizing → Competitive landscape → Buyers',
+        description: 'SerpApi Search + News · Company filings → Industry context → Cited research brief',
         params: [],
+    },
+    {
+        id: 'buyers', label: 'Buyer Discovery', agentType: 'research', taskName: 'buyer_universe',
+        badge: 'Search', description: 'Discover transaction and buyer mentions; interest requires independent verification.', params: [],
     },
     {
         id: 'cim',
@@ -115,7 +123,7 @@ const AGENT_CONFIGS: AgentConfig[] = [
 // ---- Component -------------------------------------------------------------
 
 export default function AgentsTab({ dealId }: Props) {
-    const [selectedAgentId, setSelectedAgentId] = useState<string>('dcf')
+    const [selectedAgentId, setSelectedAgentId] = useState<string>('research')
     const [paramValues, setParamValues] = useState<Record<string, Record<string, string | number>>>({})
 
     const [deploying, setDeploying] = useState(false)
@@ -126,8 +134,13 @@ export default function AgentsTab({ dealId }: Props) {
     const [activeRunId, setActiveRunId] = useState<string | null>(null)
     const [documentsReady, setDocumentsReady] = useState(true)
     const [documentStatusNote, setDocumentStatusNote] = useState('')
+    const [researchStatus, setResearchStatus] = useState<ResearchStatus | null>(null)
+    const [researchOptions, setResearchOptions] = useState({ country: 'in', news_days: 30, official_domain: '', synthesize: false })
+    const [searchConsent, setSearchConsent] = useState(false)
 
     const selectedAgent = AGENT_CONFIGS.find(a => a.id === selectedAgentId) ?? AGENT_CONFIGS[0]
+    const isResearch = selectedAgent.agentType === 'research' || selectedAgent.agentType === 'due_diligence'
+    const searchUnavailable = !researchStatus || (researchStatus.mode === 'live' && !researchStatus.search_configured)
 
     // Initialise param values for an agent if not already set
     const getParamValue = (agentId: string, paramKey: string, defaultValue: string | number) => {
@@ -155,13 +168,39 @@ export default function AgentsTab({ dealId }: Props) {
             }
             return blocked.length === 0
         } catch {
-            setDocumentsReady(true)
-            setDocumentStatusNote('')
-            return true
+            setDocumentsReady(false)
+            setDocumentStatusNote('Could not check document readiness. Retry when the API is available.')
+            return false
         }
     }, [dealId])
 
-    useEffect(() => { refreshDocumentReadiness() }, [refreshDocumentReadiness])
+    useEffect(() => {
+        let cancelled = false
+        async function initialize() {
+            await refreshDocumentReadiness()
+            const [service, runs] = await Promise.allSettled([fetchResearchStatus(), fetchAgentRuns(dealId)])
+            if (cancelled) return
+            if (service.status === 'fulfilled') setResearchStatus(service.value)
+            else setError('Could not check search configuration. Check the API connection and authentication.')
+            if (runs.status === 'fulfilled') {
+                const latest = runs.value.find(run => run.agent_type !== 'orchestrator')
+                if (latest) {
+                    try {
+                        const run = await fetchAgentRun(dealId, latest.run_id)
+                        if (cancelled) return
+                        const config = AGENT_CONFIGS.find(a => a.agentType === latest.agent_type && a.taskName === latest.task_name)
+                        if (config) setSelectedAgentId(config.id)
+                        setResult(run)
+                        setValuation(run.valuation_result || null)
+                        setLboResult(run.lbo_result || null)
+                        if (run.status === 'running') { setDeploying(true); setActiveRunId(run.run_id) }
+                    } catch { /* A deleted run should not block a fresh research task. */ }
+                }
+            }
+        }
+        void initialize()
+        return () => { cancelled = true }
+    }, [dealId, refreshDocumentReadiness])
 
     useEffect(() => {
         if (documentsReady) return
@@ -172,10 +211,15 @@ export default function AgentsTab({ dealId }: Props) {
     useEffect(() => {
         if (!activeRunId) return
         const startTime = Date.now()
-        const interval = window.setInterval(async () => {
+        let cancelled = false
+        let failures = 0
+        let timer: ReturnType<typeof setTimeout>
+        async function poll() {
             const elapsed = Date.now() - startTime
             try {
-                const run = await fetchAgentRun(dealId, activeRunId)
+                const run = await fetchAgentRun(dealId, activeRunId!)
+                if (cancelled) return
+                failures = 0
                 setResult(run)
                 if (run.valuation_result) setValuation(run.valuation_result)
                 if (run.lbo_result) {
@@ -184,22 +228,32 @@ export default function AgentsTab({ dealId }: Props) {
                 if (run.status === 'completed') {
                     setDeploying(false)
                     setActiveRunId(null)
+                    return
                 } else if (run.status === 'failed') {
                     setDeploying(false)
                     setActiveRunId(null)
                     setError(run.error_message || 'Agent run failed')
+                    return
                 } else if (elapsed > 10 * 60 * 1000) {
                     setDeploying(false)
                     setActiveRunId(null)
                     setError('Agent run timed out after 10 minutes. Check server logs.')
+                    return
                 }
             } catch {
-                setDeploying(false)
-                setActiveRunId(null)
-                setError('Failed to refresh agent status')
+                if (cancelled) return
+                failures += 1
+                if (failures >= 3) {
+                    setDeploying(false)
+                    setActiveRunId(null)
+                    setError('Lost the API connection. Reopen this tab to resume tracking the run.')
+                    return
+                }
             }
-        }, 2500)
-        return () => window.clearInterval(interval)
+            timer = setTimeout(poll, 2500)
+        }
+        timer = setTimeout(poll, 0)
+        return () => { cancelled = true; clearTimeout(timer) }
     }, [activeRunId, dealId])
 
     const handleDeploy = async () => {
@@ -209,7 +263,7 @@ export default function AgentsTab({ dealId }: Props) {
         setValuation(null)
         setLboResult(null)
 
-        const docsReady = await refreshDocumentReadiness()
+        const docsReady = isResearch || await refreshDocumentReadiness()
         if (!docsReady) {
             setDeploying(false)
             setError('Documents are still parsing. Wait until all files are marked parsed before running the agent.')
@@ -224,6 +278,7 @@ export default function AgentsTab({ dealId }: Props) {
                     params[p.key] = typeof p.defaultValue === 'number' ? Number(v) : v
                 }
             }
+            if (isResearch) Object.assign(params, researchOptions)
 
             const res = await deployAgent(dealId, {
                 agent_type: selectedAgent.agentType,
@@ -250,7 +305,8 @@ export default function AgentsTab({ dealId }: Props) {
                 msg = 'Agent run is taking longer than the browser timeout. Results will appear when complete.'
             }
             if (axios.isAxiosError(err)) {
-                msg = (err.response?.data as { detail?: string } | undefined)?.detail || msg
+                const detail = (err.response?.data as { detail?: unknown } | undefined)?.detail
+                if (detail) msg = typeof detail === 'string' ? detail : JSON.stringify(detail)
             }
             setError(msg)
             setDeploying(false)
@@ -260,7 +316,8 @@ export default function AgentsTab({ dealId }: Props) {
 
     const showDCFResults = result?.status === 'completed' && selectedAgent.id === 'dcf' && valuation
     const showLBOResults = result?.status === 'completed' && selectedAgent.id === 'lbo' && lboResult
-    const showGenericSuccess = result?.status === 'completed' && !showDCFResults && !showLBOResults
+    const showGenericSuccess = result?.status === 'completed' && !showDCFResults && !showLBOResults && !result.research_evidence
+    const runBlocked = deploying || (isResearch ? searchUnavailable || !searchConsent : !documentsReady)
 
     return (
         <div className="animate-fade-in">
@@ -273,6 +330,7 @@ export default function AgentsTab({ dealId }: Props) {
                     {AGENT_CONFIGS.map(agent => (
                         <button
                             key={agent.id}
+                            disabled={deploying}
                             onClick={() => { setSelectedAgentId(agent.id); setResult(null); setError(''); setValuation(null); setLboResult(null) }}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 6,
@@ -318,13 +376,30 @@ export default function AgentsTab({ dealId }: Props) {
             </div>
 
             {/* ---- Document Readiness Warning ---- */}
-            {!documentsReady && documentStatusNote && (
+            {!isResearch && !documentsReady && documentStatusNote && (
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
                     background: 'rgba(255,153,0,0.08)', border: '1px solid rgba(255,153,0,0.2)',
                     borderRadius: 3, marginBottom: 16, color: '#ff9900', fontSize: 12
                 }}>
                     <AlertCircle size={14} /> {documentStatusNote}
+                </div>
+            )}
+
+            {isResearch && (
+                <div className="research-controls">
+                    <p><strong>{researchStatus?.mode === 'demo' ? 'Synthetic demo mode' : 'Public company search'}</strong> · Four planned searches per run; cached responses are reused for 30 minutes.</p>
+                    {searchUnavailable && <p role="alert">{researchStatus ? 'Set SERPAPI_API_KEY in the backend environment and restart the API.' : 'Checking search configuration...'}</p>}
+                    {researchStatus?.mode === 'demo' && <p>Synthetic fixtures exercise the interface and exports. Switch the backend to live mode for the hackathon demo.</p>}
+                    <div className="research-controls-grid">
+                        <label>Search country<select value={researchOptions.country} disabled={deploying} onChange={e => setResearchOptions(prev => ({ ...prev, country: e.target.value }))}>
+                            <option value="in">India</option><option value="us">United States</option><option value="uk">United Kingdom</option>
+                        </select></label>
+                        <label>News window (days)<input type="number" min={1} max={365} value={researchOptions.news_days} disabled={deploying} onChange={e => setResearchOptions(prev => ({ ...prev, news_days: Number(e.target.value) }))} /></label>
+                        <label>Known company domain (optional)<input placeholder="company.com" value={researchOptions.official_domain} disabled={deploying} onChange={e => setResearchOptions(prev => ({ ...prev, official_domain: e.target.value }))} /></label>
+                    </div>
+                    <label className="research-checkbox"><input type="checkbox" checked={researchOptions.synthesize} disabled={deploying || !researchStatus?.synthesis_configured} onChange={e => setResearchOptions(prev => ({ ...prev, synthesize: e.target.checked }))} />Add AI interpretation of search excerpts (optional LLM key required).</label>
+                    <label className="research-checkbox"><input type="checkbox" checked={searchConsent} disabled={deploying} onChange={e => setSearchConsent(e.target.checked)} />Search using the public company name and industry. Uploaded documents remain outside search queries.</label>
                 </div>
             )}
 
@@ -363,18 +438,18 @@ export default function AgentsTab({ dealId }: Props) {
             <button
                 className="btn-primary"
                 onClick={handleDeploy}
-                disabled={deploying || !documentsReady}
+                disabled={runBlocked}
                 style={{
                     display: 'flex', alignItems: 'center', gap: 8,
                     justifyContent: 'center', width: '100%', padding: '12px 0',
                     marginBottom: 20, fontSize: 13, fontWeight: 700, letterSpacing: '0.04em',
-                    opacity: deploying || !documentsReady ? 0.7 : 1,
+                    opacity: runBlocked ? 0.7 : 1,
                 }}
             >
                 {deploying ? (
                     <><div className="spinner" style={{ width: 14, height: 14, borderTopColor: '#000' }} /> RUNNING {selectedAgent.label.toUpperCase()}...</>
                 ) : (
-                    <><Play size={14} /> DEPLOY {selectedAgent.label.toUpperCase()}</>
+                    <><Play size={14} /> RUN {selectedAgent.label.toUpperCase()}</>
                 )}
             </button>
 
@@ -387,6 +462,11 @@ export default function AgentsTab({ dealId }: Props) {
                 }}>
                     <AlertCircle size={14} /> {error}
                 </div>
+            )}
+
+            {result?.research_evidence && <ResearchResultsView evidence={result.research_evidence} report={result.research_report} />}
+            {result?.status === 'completed' && result.research_evidence && (
+                <p className="research-note">PDF and JSON exports are available in the Outputs tab. Diligence also includes an Excel review checklist. Approve a draft there before downloading it.</p>
             )}
 
             {/* ---- Run Status ---- */}

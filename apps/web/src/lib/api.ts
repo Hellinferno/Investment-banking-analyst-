@@ -125,6 +125,43 @@ export interface AgentRunResult {
     error_message?: string | null;
     confidence_score?: number | null;
     route?: Record<string, unknown>;
+    research_evidence?: ResearchEvidence | null;
+    research_report?: ResearchReport | null;
+}
+
+export interface ResearchSource {
+    id: string; title: string; url: string; domain: string; publisher: string;
+    snippet: string; published_at: string | null; retrieved_at: string;
+    engine: string; purpose: string; query: string; search_id: string;
+    cache_hit: boolean; official_domain_match: boolean; verification: string;
+}
+
+export interface ResearchEvidence {
+    mode: 'live' | 'demo'; status: 'complete' | 'partial' | 'empty';
+    company_name: string; industry: string; collected_at: string;
+    sources: ResearchSource[]; warnings: string[];
+    searches: Array<{ purpose: string; query: string; engine: string; status: string;
+        error: string | null; result_count: number; cache_hit: boolean; search_id: string }>;
+}
+
+export interface ResearchReport {
+    title: string; summary: string; synthesis_mode: 'evidence_only' | 'llm'; warnings: string[];
+    findings: Array<{ statement: string; category: string; source_ids: string[]; verification: string }>;
+}
+
+export interface ResearchStatus {
+    mode: 'live' | 'demo'; search_configured: boolean; synthesis_configured: boolean;
+    queries_per_run: number; max_http_attempts_per_run: number; cache_ttl_minutes: number;
+}
+
+export async function fetchResearchStatus(): Promise<ResearchStatus> {
+    const response = await api.get<ResearchStatus>('/research/status');
+    return response.data;
+}
+
+export async function fetchAgentRuns(dealId: string): Promise<Array<{run_id: string; agent_type: string; task_name: string; status: string}>> {
+    const response = await api.get<APIResponse<{runs: Array<{run_id: string; agent_type: string; task_name: string; status: string}>}>>(`/deals/${dealId}/agents/runs`);
+    return response.data.data.runs;
 }
 
 export interface ValuationResult {
