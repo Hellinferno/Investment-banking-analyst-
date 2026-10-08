@@ -21,7 +21,8 @@ PyJWT>=2.10.1
 
 # ── Financial / numerical computation ───────────────────────────
 numpy>=2.4.3
-pandas>=3.0.0
+# LlamaIndex file readers require pandas <3.
+pandas>=2.2,<3
 scipy>=1.17.0          # Monte Carlo DCF, IRR, statistical distributions
 
 # ── Excel output (IB-quality models) ────────────────────────────
@@ -49,4 +50,3 @@ python-dotenv>=1.2.0
 sqlalchemy>=2.0.30
 alembic>=1.13.1
 psycopg2-binary>=2.9.9
-
