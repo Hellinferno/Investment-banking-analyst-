@@ -33,7 +33,7 @@ Activate the environment:
 - macOS/Linux: `source .venv/bin/activate`
 - Windows PowerShell: `.venv\Scripts\Activate.ps1`
 
-Install dependencies and configure **SERPAPI_API_KEY in the root .env**, keeping `AIBAA_RESEARCH_MODE=live`:
+Install dependencies and configure **SERPAPI_API_KEY in the root .env**, keeping `AIBAA_RESEARCH_MODE=live`. Optional Gemini interpretation uses `GEMINI_API_KEY` and defaults to `GEMINI_MODEL=gemini-3.8-flash`:
 
 ```bash
 python -m pip install -r apps/api/requirements-dev.txt

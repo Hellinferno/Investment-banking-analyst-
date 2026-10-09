@@ -31,6 +31,7 @@ _load_env_files()
 
 # Check if API keys are available
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash"
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
 NVIDIA_TIMEOUT_SECONDS = float(os.environ.get("NVIDIA_TIMEOUT_SECONDS", "8"))
 NVIDIA_FALLBACK_ENABLED = os.environ.get("NVIDIA_FALLBACK_ENABLED", "true").lower() not in {
@@ -87,11 +88,10 @@ def _is_transient_error(err: Exception) -> bool:
 def _call_gemini(system_prompt: str, user_prompt: str) -> str:
     """Call Gemini with automatic retry on transient errors (up to 3 attempts)."""
     response = gemini_client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=GEMINI_MODEL,
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
-            temperature=0.0,
         ),
     )
     return response.text

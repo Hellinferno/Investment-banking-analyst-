@@ -32,7 +32,7 @@ Use final commits/PR history as evidence; do not invent dates or pretend the ent
 
 ## AI-tool disclosure draft
 
-ChatGPT/Codex assisted with planning, implementation, debugging, tests and documentation for the new integration and final optimization. The project also supports optional Gemini/NVIDIA runtime synthesis; specify which provider was actually used in the demonstrated workflow, or state that the demonstration used source-only research.
+ChatGPT/Codex assisted with planning, implementation, debugging, tests, live-provider validation and documentation for the new integration and final optimization. The verified workflow used SerpApi for public search evidence and tested optional Gemini free-tier synthesis separately; source-only research remains the primary demonstration path and works without an LLM.
 
 Edit this to reflect actual assistance and your participation. Do not claim an optional provider was used simply because its configuration exists.
 
@@ -54,7 +54,7 @@ The integration uses the existing HTTP-client approach; do not claim an SDK, Goo
 | Is buyer interest confirmed? | No. Buyer Discovery identifies public transaction mentions and investigation leads. |
 | Is this production-scale? | The demonstration uses a single-process job/cache design. |
 | Was the project pre-existing? | Yes; the contribution section and git history separate new work. |
-| Did live testing pass? | Replace with the actual validation outcome, account-free evidence and date. |
+| Did live testing pass? | Yes, with disclosed limitations on 9 October 2026. Company Intelligence completed with 24 sources and partial coverage because one filing query timed out; Diligence Discovery completed with 32 sources and complete query coverage. Optional Gemini free-tier synthesis returned five citation-ID-valid findings after updating the retired default model. Source quality was mixed and all claims still require analyst review. |
 
 ## Final-copy gate
 

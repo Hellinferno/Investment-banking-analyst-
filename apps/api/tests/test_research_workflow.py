@@ -1,7 +1,9 @@
 import json
+from io import BytesIO
 from pathlib import Path
 
 import fitz
+from openpyxl import load_workbook
 import pytest
 from fastapi.testclient import TestClient
 
@@ -99,6 +101,16 @@ def test_demo_diligence_produces_review_checklist_without_risk_score(client, mon
     outputs = client.get(f"/api/v1/deals/{deal_id}/outputs", headers=headers).json()["data"]
     assert {o["output_type"] for o in outputs} == {"pdf", "json", "xlsx"}
     assert "synthetic" in " ".join(response.json()["data"]["research_report"]["warnings"])
+    workbook_output = next(output for output in outputs if output["output_type"] == "xlsx")
+    assert client.patch(
+        f"/api/v1/outputs/{workbook_output['id']}/review",
+        headers=headers,
+        json={"review_status": "approved"},
+    ).status_code == 200
+    workbook_bytes = client.get(f"/api/v1/outputs/{workbook_output['id']}/download", headers=headers).content
+    workbook = load_workbook(BytesIO(workbook_bytes), read_only=False)
+    assert workbook["Sources"]["C2"].hyperlink.target.startswith("https://")
+    assert workbook["Review Checklist"].column_dimensions["B"].width == 90
 
 
 def test_review_board_is_run_scoped_authorized_and_exports_immutable_snapshots(client, monkeypatch):

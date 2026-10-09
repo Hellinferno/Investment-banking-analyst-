@@ -149,14 +149,22 @@ def write_diligence_workbook(path, bundle, report):
         sources.append([source["id"], sheet_text(source["title"]), sheet_text(source["url"]),
                         sheet_text(source["published_at"]), source["retrieved_at"], source["engine"],
                         source["search_id"], str(source["cache_hit"])])
+        url_cell = sources.cell(row=sources.max_row, column=3)
+        url_cell.hyperlink = source["url"]
+        url_cell.style = "Hyperlink"
+    column_widths = {
+        "Summary": [20, 90],
+        "Review Checklist": [24, 90, 16, 24, 18],
+        "Sources": [10, 48, 70, 18, 25, 16, 28, 10],
+    }
     for sheet in wb:
         sheet.freeze_panes = "A2"
         sheet.auto_filter.ref = sheet.dimensions
         for cell in sheet[1]:
             cell.font = Font(bold=True, color="FFFFFF")
             cell.fill = PatternFill("solid", fgColor="16324F")
-        for index in range(1, sheet.max_column + 1):
-            sheet.column_dimensions[get_column_letter(index)].width = 22 if index == 1 else 55
+        for index, width in enumerate(column_widths[sheet.title], start=1):
+            sheet.column_dimensions[get_column_letter(index)].width = width
         for row in sheet.iter_rows(min_row=2):
             for cell in row:
                 cell.alignment = Alignment(wrap_text=True, vertical="top")

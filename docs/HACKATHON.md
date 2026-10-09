@@ -56,8 +56,9 @@ For predictable timing, rehearse the same public company first and disclose when
 
 Automated tests use mocked SerpApi and explicit offline modeling fixtures, with keys disabled. They cover retries, quota/authentication errors, caching, nested news, source handling, partial/empty results, citation validation, exports, persistence, access controls, and historical financial regressions. Frontend TypeScript/build and ESLint checks are included.
 
+Completed on 9 October 2026: bounded live Infosys Company Intelligence and Diligence Discovery runs, approval/download of PDF/JSON/XLSX artifacts, a versioned Analyst Review Board export, and optional Gemini free-tier synthesis using the current configurable model. The live source set was useful for discovery but mixed in quality; official filings still require manual retrieval and corroboration.
+
 Before submission, still complete:
-- A real SerpApi run using your account, and a real LLM run if demonstrating synthesis.
 - A browser walkthrough at desktop and narrow widths, including refresh/resume and output approval.
 - Docker Compose build/run if using containers for the presentation.
 - A recording within the organizer's limit and the required submission fields/links.

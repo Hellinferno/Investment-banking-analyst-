@@ -67,7 +67,7 @@ Provider billing depends on account rules and provider cache behavior; the reque
 
 ## Optional AI interpretation
 
-Set a backend GEMINI_API_KEY or NVIDIA_API_KEY and select AI interpretation. The LLM receives at most 24 normalized source excerpts, titles, dates, purposes, and IDs. No uploaded documents are supplied by this research path.
+Set a backend `GEMINI_API_KEY` or `NVIDIA_API_KEY` and select AI interpretation. Gemini defaults to `gemini-3.8-flash`; set `GEMINI_MODEL` to another supported model ID when needed. The LLM receives at most 24 normalized source excerpts, titles, dates, purposes, and IDs. No uploaded documents are supplied by this research path.
 
 Output is schema-checked and every citation ID must exist. Unknown-ID observations are removed; invalid/empty output falls back to excerpts. Citation existence does not verify semantic support. Every AI observation is labeled analyst_interpretation and requires review.
 
