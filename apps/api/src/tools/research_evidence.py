@@ -170,7 +170,9 @@ def collect_evidence(company: str, industry: str, params: ResearchParameters, *,
             warnings.append("No usable sources were found. No factual research conclusions can be produced.")
     complete = all(s["status"] in {"success", "demo"} for s in searches)
     return {"mode": mode, "status": "complete" if complete else "partial" if sources else "empty",
-            "company_name": company, "industry": industry, "collected_at": collected_at,
+            "company_name": company, "industry": industry, "country": params.country,
+            "news_days": params.news_days, "official_domain": params.official_domain or None,
+            "collected_at": collected_at,
             "sources": sources, "searches": searches, "warnings": warnings}
 
 

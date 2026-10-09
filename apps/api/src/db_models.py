@@ -67,6 +67,24 @@ class AgentRunModel(Base):
     deal = relationship("DealModel", back_populates="agent_runs")
 
 
+class ResearchReviewItemModel(Base):
+    __tablename__ = "research_review_items"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    research_run_id = Column(String, ForeignKey("agent_runs.id"), index=True, nullable=False)
+
+    kind = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    note = Column(String, nullable=False, default="")
+    next_action = Column(String, nullable=True)
+    source_ids = Column(JSON, nullable=False, default=list)
+    status = Column(String, nullable=False, default="unreviewed")
+
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+    updated_by = Column(String, index=True, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+
+
 class OutputModel(Base):
     __tablename__ = "outputs"
 

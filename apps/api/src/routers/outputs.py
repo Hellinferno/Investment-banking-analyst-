@@ -69,6 +69,7 @@ async def list_deal_outputs(
                 "output_type": out.output_type,
                 "output_category": out.output_category,
                 "review_status": out.review_status,
+                "version": out.version,
                 "created_at": out.created_at.isoformat(),
             }
             for out in outputs_list

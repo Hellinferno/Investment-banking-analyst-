@@ -17,6 +17,8 @@ The hackathon contribution adds:
 - Normalized evidence, provenance, citations, coverage, caching, and safe failure handling.
 - Reworked research and public diligence discovery agents.
 - Source review/filtering UI, search settings, explicit demo mode, and saved-run restoration.
+- Persistent run-specific Analyst Review Board for cited observations, questions, review statuses, and next actions.
+- Immutable versioned PDF/JSON board snapshots that preserve linked source context.
 - Cited PDF/JSON exports and a diligence Excel checklist.
 - DCF result/checkpoint persistence fix, distinct filenames for repeat exports, explicit comps labels, shared runtime paths, setup/proxy fixes, regression checks, and CI.
 
@@ -42,9 +44,10 @@ Optional AI interpretation can be shown after the source-only workflow works. Ne
 | --- | --- | --- |
 | 0:00-0:20 | Deal workspace | Analysts need a traceable company brief, not disconnected search tabs |
 | 0:20-0:50 | Company Intelligence settings and a live run | Four focused Google Search/News queries; public metadata only |
-| 0:50-1:35 | Coverage, source links, excerpts, citation jumps/filter | View where observations came from and which queries were incomplete |
-| 1:35-2:10 | Diligence Discovery | Source-linked checklist for human investigation; no invented risk score |
-| 2:10-2:40 | Outputs, approve, PDF/JSON/XLSX | Reviewable artifacts preserve provenance |
+| 0:50-1:25 | Coverage, source links, excerpts, citation jumps/filter | View where observations came from and which queries were incomplete |
+| 1:25-1:55 | Analyst Review Board | Save a cited open question, next action, and analyst review status |
+| 1:55-2:20 | Diligence Discovery | Source-linked checklist for human investigation; no invented risk score |
+| 2:20-2:45 | Outputs, approve, PDF/JSON/XLSX | Versioned artifacts preserve the reviewed source context |
 | 2:40-2:55 | Existing DCF/LBO context and contribution disclosure | New search-backed intelligence extends the existing analyst workspace |
 
 For predictable timing, rehearse the same public company first and disclose when a response is cached. Do not present an offline fixture as a live search.

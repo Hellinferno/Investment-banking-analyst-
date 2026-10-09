@@ -8,7 +8,7 @@ AI Investment Banking Analyst Agent combines public company discovery with an ex
 
 | Workflow | Inputs | Outputs |
 | --- | --- | --- |
-| Company Intelligence | Public company name, industry, country, optional known domain | Search evidence, cited observations, PDF and JSON |
+| Company Intelligence | Public company name, industry, country, optional known domain | Search evidence, cited observations, persistent Analyst Review Board, PDF and JSON |
 | Buyer Discovery | Same public metadata | Transaction/buyer mentions for review; interest is not established |
 | Diligence Discovery | Same public metadata | Public-source observations, PDF, JSON, Excel review checklist |
 | DCF / LBO | Financial documents and analyst assumptions; extraction may require an LLM key | Deterministic calculations and Excel models |
@@ -77,8 +77,10 @@ Compose runs PostgreSQL and a same-origin Nginx API proxy. Runtime uploads/outpu
 3. Choose country and news window; optionally enter a known domain such as company.com.
 4. Confirm the public-metadata search selection and run.
 5. Review complete/partial/empty search coverage, queries, citations, and source links.
-6. Run Diligence Discovery for a source-linked Excel checklist.
-7. In Outputs, approve the draft as reviewer before downloading.
+6. Save observations or open questions to the run-specific Analyst Review Board, link 1–8 sources, and record a next action and review status.
+7. Export a new PDF/JSON board snapshot. Earlier approved export bytes are never overwritten.
+8. Run Diligence Discovery for a source-linked Excel checklist.
+9. In Outputs, approve the desired draft version as reviewer before downloading.
 
 Uploaded documents and deal notes are excluded from search queries. If AI interpretation is selected, normalized public search excerpts are sent to the configured LLM provider. Other existing agents may send uploaded document context to an LLM.
 
@@ -91,7 +93,7 @@ npm run lint
 npm run build
 ```
 
-The default suite includes existing backend checks, offline historical modeling regressions, mocked SerpApi HTTP behavior, research persistence, exports, authentication, and tenant boundaries. It isolates its database and disables real API keys. Historical company profiles are injected only by tests; they are not live financial data.
+The default suite includes existing backend checks, offline historical modeling regressions, mocked SerpApi HTTP behavior, research and review-board persistence, immutable versioned exports, authentication, and tenant boundaries. It isolates its database and disables real API keys. Historical company profiles are injected only by tests; they are not live financial data.
 
 CI runs backend tests and frontend lint/build. A live SerpApi key check, browser walkthrough, and container deployment check remain environment-specific validation.
 

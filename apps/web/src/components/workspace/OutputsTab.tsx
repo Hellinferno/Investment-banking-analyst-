@@ -82,7 +82,7 @@ export default function OutputsTab({ dealId }: Props) {
                                 <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 2 }}>{out.filename}</div>
                                 <div style={{ fontSize: 11, color: '#555', display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <Clock size={10} />
-                                    {new Date(out.created_at).toLocaleString()} · {out.output_type}
+                                    {new Date(out.created_at).toLocaleString()} · {out.output_type} · version {out.version}
                                 </div>
                             </div>
                             <span className={`badge ${approved ? 'badge-emerald' : 'badge-amber'}`}>

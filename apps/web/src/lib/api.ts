@@ -138,7 +138,8 @@ export interface ResearchSource {
 
 export interface ResearchEvidence {
     mode: 'live' | 'demo'; status: 'complete' | 'partial' | 'empty';
-    company_name: string; industry: string; collected_at: string;
+    company_name: string; industry: string; country?: string; news_days?: number;
+    official_domain?: string | null; collected_at: string;
     sources: ResearchSource[]; warnings: string[];
     searches: Array<{ purpose: string; query: string; engine: string; status: string;
         error: string | null; result_count: number; cache_hit: boolean; search_id: string }>;
@@ -152,6 +153,33 @@ export interface ResearchReport {
 export interface ResearchStatus {
     mode: 'live' | 'demo'; search_configured: boolean; synthesis_configured: boolean;
     queries_per_run: number; max_http_attempts_per_run: number; cache_ttl_minutes: number;
+}
+
+export type ResearchReviewKind = 'observation' | 'question';
+export type ResearchReviewStatus = 'unreviewed' | 'reviewed' | 'needs_follow_up';
+
+export interface ResearchReviewItem {
+    id: string;
+    research_run_id: string;
+    kind: ResearchReviewKind;
+    title: string;
+    note: string;
+    next_action?: string | null;
+    source_ids: string[];
+    sources: Array<{ id: string; title: string; url: string }>;
+    status: ResearchReviewStatus;
+    updated_at: string;
+    updated_by: string;
+    created_at: string;
+}
+
+export interface ResearchReviewItemPayload {
+    kind: ResearchReviewKind;
+    title: string;
+    note: string;
+    next_action?: string | null;
+    source_ids: string[];
+    status: ResearchReviewStatus;
 }
 
 export async function fetchResearchStatus(): Promise<ResearchStatus> {
@@ -274,6 +302,7 @@ export interface OutputInfo {
     output_type: string;
     output_category: string;
     review_status: string;
+    version: number;
     created_at: string;
 }
 
@@ -383,6 +412,50 @@ export async function deployAgent(dealId: string, payload: AgentRunPayload): Pro
 
 export async function fetchAgentRun(dealId: string, runId: string): Promise<AgentRunResult> {
     const res = await api.get<APIResponse<AgentRunResult>>(`/deals/${dealId}/agents/runs/${runId}`);
+    return res.data.data;
+}
+
+export async function fetchResearchReviewItems(dealId: string, runId: string): Promise<ResearchReviewItem[]> {
+    const res = await api.get<APIResponse<ResearchReviewItem[]>>(`/research/deals/${dealId}/runs/${runId}/review-items`);
+    return res.data.data;
+}
+
+export async function createResearchReviewItem(
+    dealId: string,
+    runId: string,
+    payload: ResearchReviewItemPayload,
+): Promise<ResearchReviewItem> {
+    const res = await api.post<APIResponse<ResearchReviewItem>>(
+        `/research/deals/${dealId}/runs/${runId}/review-items`,
+        payload,
+    );
+    return res.data.data;
+}
+
+export async function updateResearchReviewItem(
+    dealId: string,
+    runId: string,
+    itemId: string,
+    payload: Partial<ResearchReviewItemPayload>,
+): Promise<ResearchReviewItem> {
+    const res = await api.patch<APIResponse<ResearchReviewItem>>(
+        `/research/deals/${dealId}/runs/${runId}/review-items/${itemId}`,
+        payload,
+    );
+    return res.data.data;
+}
+
+export async function deleteResearchReviewItem(dealId: string, runId: string, itemId: string): Promise<void> {
+    await api.delete(`/research/deals/${dealId}/runs/${runId}/review-items/${itemId}`);
+}
+
+export async function exportResearchReviewBoard(
+    dealId: string,
+    runId: string,
+): Promise<{ version: number; review_item_count: number; outputs: Array<{ id: string; filename: string; output_type: string; review_status: string; version: number }> }> {
+    const res = await api.post<APIResponse<{ version: number; review_item_count: number; outputs: Array<{ id: string; filename: string; output_type: string; review_status: string; version: number }> }>>(
+        `/research/deals/${dealId}/runs/${runId}/review-export`,
+    );
     return res.data.data;
 }
 
