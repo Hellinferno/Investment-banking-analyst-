@@ -2,21 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system deps for PDF parsing + PostgreSQL
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev \
-    gcc \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
+# Install runtime deps for OCR and numerical wheels. The database driver and
+# document libraries are installed from binary wheels and need no compiler.
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     fonts-dejavu-core \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY apps/api/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --timeout 120 --retries 10 -r requirements.txt
 
 # Copy application source
 COPY apps/api/src/ ./src/
