@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from typing import Annotated, Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ---------------------------------------------------------------------------
 # Constrained scalar types reused across schemas
@@ -22,6 +22,9 @@ PriorityStr = Literal["low", "medium", "high"]
 
 ReviewStatusStr = Literal["draft", "in_review", "approved", "rejected"]
 UserRoleStr = Literal["analyst", "reviewer", "admin"]
+ResearchReviewKindStr = Literal["observation", "question"]
+ResearchReviewStatusStr = Literal["unreviewed", "reviewed", "needs_follow_up"]
+ResearchSourceId = Annotated[str, Field(pattern=r"^S[1-9]\d{0,3}$", max_length=12)]
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
@@ -97,6 +100,61 @@ class OutputReviewUpdate(BaseModel):
     @classmethod
     def sanitize_reviewer_notes(cls, v):
         return _strip_html(v)
+
+
+class ResearchReviewItemCreate(BaseModel):
+    kind: ResearchReviewKindStr
+    title: str = Field(..., min_length=1, max_length=160)
+    note: str = Field(default="", max_length=2000)
+    next_action: Optional[str] = Field(None, max_length=500)
+    source_ids: List[ResearchSourceId] = Field(..., min_length=1, max_length=8)
+    status: ResearchReviewStatusStr = "unreviewed"
+
+    @field_validator("title", "note", "next_action", mode="before")
+    @classmethod
+    def sanitize_review_text(cls, value):
+        return _strip_html(value)
+
+    @field_validator("source_ids")
+    @classmethod
+    def distinct_source_ids(cls, value):
+        if len(value) != len(set(value)):
+            raise ValueError("source_ids must be distinct")
+        return value
+
+
+class ResearchReviewItemUpdate(BaseModel):
+    kind: Optional[ResearchReviewKindStr] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=160)
+    note: Optional[str] = Field(None, max_length=2000)
+    next_action: Optional[str] = Field(None, max_length=500)
+    source_ids: Optional[List[ResearchSourceId]] = Field(None, min_length=1, max_length=8)
+    status: Optional[ResearchReviewStatusStr] = None
+
+    @field_validator("title", "note", "next_action", mode="before")
+    @classmethod
+    def sanitize_review_text(cls, value):
+        return _strip_html(value)
+
+    @field_validator("source_ids")
+    @classmethod
+    def distinct_source_ids(cls, value):
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError("source_ids must be distinct")
+        return value
+
+    @model_validator(mode="after")
+    def require_change(self):
+        if not self.model_fields_set:
+            raise ValueError("At least one field must be supplied")
+        required_values = {"kind", "title", "note", "source_ids", "status"}
+        null_fields = sorted(
+            field for field in self.model_fields_set
+            if field in required_values and getattr(self, field) is None
+        )
+        if null_fields:
+            raise ValueError(f"Fields cannot be null: {', '.join(null_fields)}")
+        return self
 
 
 class DevAuthTokenRequest(BaseModel):

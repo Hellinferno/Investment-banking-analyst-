@@ -1,0 +1,1201 @@
+{
+  "checked_at": "2026-10-10T03:46:21.648349+00:00",
+  "models": [
+    {
+      "model": "apodex/apodex-1.1-mini:free",
+      "catalog_present": true,
+      "name": "Apodex: Apodex 1.1 Mini (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 262144,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 262144,
+        "max_completion_tokens": 235929,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "apodex/apodex-1.1-mini:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"Corporate disclosure\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office; the reported nature of this claim should be verified with the original publication.\",\"source_ids\":[\"S2\"],\"category\":\"News report (unverified)\"}]}",
+        "completion_tokens": 67,
+        "analyst_json_pass": true,
+        "latency_seconds": 1.14,
+        "checked_at": "2026-10-10T03:34:23.804917+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "inception/mercury-decide:free",
+      "catalog_present": true,
+      "name": "Inception: Mercury Decide (free)",
+      "architecture": {
+        "modality": "text->decisions",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "decisions"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 65536,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [],
+      "top_provider": {
+        "context_length": 65536,
+        "max_completion_tokens": 58982,
+        "is_moderated": false
+      },
+      "reasoning": null,
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/api/alpha/decisions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "inception/mercury-decide-20260930",
+        "cost": 0,
+        "status": "response_ok",
+        "answer": {
+          "type": "noul",
+          "noul": 0.994779873994504
+        },
+        "latency_seconds": 0.45,
+        "checked_at": "2026-10-10T03:34:27.460976+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "respan/span-01-lite:free",
+      "catalog_present": true,
+      "name": "Respan: Span-01 Lite (free)",
+      "architecture": {
+        "modality": "text->decisions",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "decisions"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 0,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [],
+      "top_provider": {
+        "context_length": 0,
+        "max_completion_tokens": 0,
+        "is_moderated": false
+      },
+      "reasoning": null,
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/api/alpha/decisions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "respan/span-01-lite-20260925",
+        "cost": 0,
+        "status": "response_ok",
+        "answer": {
+          "type": "noul",
+          "noul": 0.93826103
+        },
+        "latency_seconds": 0.86,
+        "checked_at": "2026-10-10T03:36:47.097836+00:00"
+      },
+      "probe_history": [
+        {
+          "endpoint": "/api/alpha/decisions",
+          "attempts": 1,
+          "http_status": 400,
+          "status": "http_error",
+          "error_code": 400,
+          "message": "Respan state must be a string or an object with only input (a message array) and output (a message), where each message has a string content and a role of system, user, assistant or tool, and the output role is assistant",
+          "latency_seconds": 0.05,
+          "checked_at": "2026-10-10T03:34:30.707366+00:00"
+        }
+      ]
+    },
+    {
+      "model": "liquid/lfm-2.5-embedding-350m:free",
+      "catalog_present": true,
+      "name": "LiquidAI: LFM2.5-Embedding-350M (free)",
+      "architecture": {
+        "modality": "text->embeddings",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "embeddings"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 512,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [],
+      "top_provider": {
+        "context_length": 512,
+        "max_completion_tokens": 460,
+        "is_moderated": false
+      },
+      "reasoning": null,
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/embeddings",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "openrouter:LiquidAI/LFM2.5-Embedding-350M:free",
+        "cost": 0,
+        "status": "response_ok",
+        "dimensions": 1024,
+        "latency_seconds": 0.49,
+        "checked_at": "2026-10-10T03:34:34.395983+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "dots-studio/dots-3-note-preview:free",
+      "catalog_present": true,
+      "name": "Dots Studio: Dots3-Note Preview (free)",
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 512000,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 512000,
+        "max_completion_tokens": 460800,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "dots-studio/dots-3-note-preview:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report, indicating formal disclosure of financial and operational performance.\",\"source_ids\":[\"S1\"],\"category\":\"Corporate Disclosure\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office, reflecting an expansion in physical presence.\",\"source_ids\":[\"S2\"],\"category\":\"Business Expansion\"}]}",
+        "completion_tokens": 65,
+        "analyst_json_pass": true,
+        "latency_seconds": 1.88,
+        "checked_at": "2026-10-10T03:34:39.486462+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "liquid/lfm-2.5-2.6b:free",
+      "catalog_present": true,
+      "name": "LiquidAI: LFM2.5-2.6B (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 65536,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "logprobs",
+        "max_completion_tokens",
+        "max_tokens",
+        "min_p",
+        "presence_penalty",
+        "reasoning",
+        "repetition_penalty",
+        "response_format",
+        "seed",
+        "stop",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_logprobs",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 65536,
+        "max_completion_tokens": 8192,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": true
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "liquid/lfm-2.5-2.6b:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo has published an annual report, which may contain relevant financial and operational disclosures for analysis.\",\"source_ids\":[\"S1\"],\"category\":\"Company Activity\"},{\"statement\":\"A newspaper has reported that ExampleCo opened an office, suggesting potential business expansion or new market presence.\",\"source_ids\":[\"S2\"],\"category\":\"Business Development\"}]}",
+        "completion_tokens": 562,
+        "analyst_json_pass": true,
+        "latency_seconds": 3.98,
+        "checked_at": "2026-10-10T03:34:46.677591+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/nemotron-3.5-lightning:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 1000000,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 1000000,
+        "max_completion_tokens": 65536,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "nvidia/nemotron-3.5-lightning:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\", \"source_ids\":[\"S1\"], \"category\":\"Operational Activity\"}, {\"statement\":\"A newspaper reports that ExampleCo opened an office.\", \"source_ids\":[\"S2\"], \"category\":\"Operational Activity\"}]}",
+        "completion_tokens": 59,
+        "analyst_json_pass": true,
+        "latency_seconds": 1.78,
+        "checked_at": "2026-10-10T03:34:51.659012+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "thinkingmachines/inkling-small:free",
+      "catalog_present": true,
+      "name": "Thinking Machines: Inkling Small (free)",
+      "architecture": {
+        "modality": "text+image+audio->text",
+        "input_modalities": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 1048576,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "stop",
+        "temperature",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 1048576,
+        "max_completion_tokens": 262144,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true,
+        "supported_efforts": [
+          "max",
+          "high",
+          "medium",
+          "low",
+          "minimal",
+          "none"
+        ],
+        "default_effort": "high"
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 403,
+        "status": "http_error",
+        "error_code": 403,
+        "message": "thinkingmachines/inkling-small:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps",
+        "latency_seconds": 0.03,
+        "checked_at": "2026-10-10T03:34:54.894702+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "poolside/laguna-s-2.1:free",
+      "catalog_present": true,
+      "name": "Poolside: Laguna S 2.1 (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 262144,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ],
+      "top_provider": {
+        "context_length": 262144,
+        "max_completion_tokens": 32768,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "poolside/laguna-s-2.1:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report, as stated in S1\",\"source_ids\":[\"S1\"],\"category\":\"Company disclosure\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office, per S2\",\"source_ids\":[\"S2\"],\"category\":\"Reported event\"}]}",
+        "completion_tokens": 60,
+        "analyst_json_pass": true,
+        "latency_seconds": 12.73,
+        "checked_at": "2026-10-10T03:35:10.835048+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "thinkingmachines/inkling:free",
+      "catalog_present": true,
+      "name": "Thinking Machines: Inkling (free)",
+      "architecture": {
+        "modality": "text+image+audio->text",
+        "input_modalities": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 1048576,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "stop",
+        "temperature",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 1048576,
+        "max_completion_tokens": 262144,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true,
+        "supported_efforts": [
+          "max",
+          "high",
+          "medium",
+          "low",
+          "minimal",
+          "none"
+        ],
+        "default_effort": "high"
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 403,
+        "status": "http_error",
+        "error_code": 403,
+        "message": "thinkingmachines/inkling:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps",
+        "latency_seconds": 0.03,
+        "checked_at": "2026-10-10T03:35:14.072087+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/nemotron-3-embed-1b:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Nemotron 3 Embed 1B (free)",
+      "architecture": {
+        "modality": "text->embeddings",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "embeddings"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 32768,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [],
+      "top_provider": {
+        "context_length": 32768,
+        "max_completion_tokens": 29491,
+        "is_moderated": false
+      },
+      "reasoning": null,
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/embeddings",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "private/openrouter/nvidia/nemotron-3-embed-1b",
+        "cost": 0,
+        "status": "response_ok",
+        "dimensions": 2048,
+        "latency_seconds": 0.45,
+        "checked_at": "2026-10-10T03:35:17.727217+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "poolside/laguna-xs-2.1:free",
+      "catalog_present": true,
+      "name": "Poolside: Laguna XS 2.1 (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 262144,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "temperature",
+        "tool_choice",
+        "tools"
+      ],
+      "top_provider": {
+        "context_length": 262144,
+        "max_completion_tokens": 32768,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 429,
+        "status": "http_error",
+        "error_code": 429,
+        "message": "Provider returned error",
+        "latency_seconds": 0.31,
+        "checked_at": "2026-10-10T03:35:21.249624+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "cohere/north-mini-code:free",
+      "catalog_present": true,
+      "name": "Cohere: North Mini Code (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Cohere",
+        "instruct_type": null
+      },
+      "context_length": 256000,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "frequency_penalty",
+        "include_reasoning",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "seed",
+        "stop",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_k",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 256000,
+        "max_completion_tokens": 64000,
+        "is_moderated": true
+      },
+      "reasoning": {
+        "mandatory": false
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "cohere/north-mini-code:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\": [{\"statement\": \"ExampleCo published an annual report.\", \"source_ids\": [\"S1\"], \"category\": \"Financial Reporting\"}, {\"statement\": \"A newspaper reports that ExampleCo opened an office.\", \"source_ids\": [\"S2\"], \"category\": \"Business Expansion\"}]}",
+        "completion_tokens": 60,
+        "analyst_json_pass": true,
+        "latency_seconds": 1.03,
+        "checked_at": "2026-10-10T03:35:25.498062+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/llama-nemotron-rerank-vl-1b-v2:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Llama Nemotron Rerank VL 1B V2 (free)",
+      "architecture": {
+        "modality": "text+image->rerank",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "rerank"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 10240,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [],
+      "top_provider": {
+        "context_length": 10240,
+        "max_completion_tokens": 9216,
+        "is_moderated": false
+      },
+      "reasoning": null,
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/rerank",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "nvidia/llama-nemotron-rerank-vl-1b-v2",
+        "cost": 0,
+        "status": "response_ok",
+        "ranking": [
+          {
+            "index": 0,
+            "relevance_score": 0.2242252748699176,
+            "document": {
+              "text": "A company annual filing."
+            }
+          },
+          {
+            "index": 1,
+            "relevance_score": 0.001734207983509085,
+            "document": {
+              "text": "A recipe for soup."
+            }
+          }
+        ],
+        "latency_seconds": 1.38,
+        "checked_at": "2026-10-10T03:35:30.094838+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/nemotron-3.5-content-safety:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Nemotron 3.5 Content Safety (free)",
+      "architecture": {
+        "modality": "text+image->text",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 128000,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 128000,
+        "max_completion_tokens": 8192,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "nvidia/nemotron-3.5-content-safety:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "User Safety: safe",
+        "completion_tokens": 5,
+        "latency_seconds": 0.41,
+        "checked_at": "2026-10-10T03:35:33.697622+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Nemotron 3 Ultra (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 1000000,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 1000000,
+        "max_completion_tokens": 65536,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true,
+        "supports_max_tokens": true,
+        "supported_efforts": [
+          "high",
+          "medium"
+        ],
+        "default_effort": "high"
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"Corporate Filing\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"Media Report\"}]}",
+        "completion_tokens": 60,
+        "analyst_json_pass": true,
+        "latency_seconds": 1.33,
+        "checked_at": "2026-10-10T03:35:38.222835+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Nemotron 3 Nano Omni (free)",
+      "architecture": {
+        "modality": "text+image+audio+video->text",
+        "input_modalities": [
+          "text",
+          "audio",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 256000,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 256000,
+        "max_completion_tokens": 65536,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true,
+        "supports_max_tokens": true
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "\n```json\n{\n  \"findings\": [\n    {\n      \"statement\": \"ExampleCo published an annual report.\",\n      \"source_ids\": [\"S1\"],\n      \"category\": \"Documented corporate activity\"\n    },\n    {\n      \"statement\": \"A newspaper reports that ExampleCo opened an office.\",\n      \"source_ids\": [\"S2\"],\n      \"category\": \"Reported business expansion\"\n    }\n  ]\n}\n```",
+        "completion_tokens": 89,
+        "analyst_json_pass": true,
+        "latency_seconds": 2.06,
+        "checked_at": "2026-10-10T03:35:43.488384+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "google/gemma-4-26b-a4b-it:free",
+      "catalog_present": true,
+      "name": "Google: Gemma 4 26B A4B  (free)",
+      "architecture": {
+        "modality": "text+image+video->text",
+        "input_modalities": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Gemma",
+        "instruct_type": null
+      },
+      "context_length": 262144,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 262144,
+        "max_completion_tokens": 32768,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": false
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 429,
+        "status": "http_error",
+        "error_code": 429,
+        "message": "Provider returned error",
+        "latency_seconds": 0.38,
+        "checked_at": "2026-10-10T03:35:47.069188+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "google/gemma-4-31b-it:free",
+      "catalog_present": true,
+      "name": "Google: Gemma 4 31B (free)",
+      "architecture": {
+        "modality": "text+image+video->text",
+        "input_modalities": [
+          "image",
+          "text",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Gemma",
+        "instruct_type": null
+      },
+      "context_length": 262144,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "response_format",
+        "seed",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 262144,
+        "max_completion_tokens": 32768,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": false
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 429,
+        "status": "http_error",
+        "error_code": 429,
+        "message": "Provider returned error",
+        "latency_seconds": 0.33,
+        "checked_at": "2026-10-10T03:35:50.641567+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Nemotron 3 Super (free)",
+      "architecture": {
+        "modality": "text->text",
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 262144,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "response_format",
+        "seed",
+        "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "top_provider": {
+        "context_length": 262144,
+        "max_completion_tokens": 235929,
+        "is_moderated": false
+      },
+      "reasoning": {
+        "mandatory": false,
+        "default_enabled": true,
+        "supports_max_tokens": true,
+        "supported_efforts": [
+          "medium",
+          "low"
+        ],
+        "default_effort": "medium"
+      },
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/chat/completions",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "nvidia/nemotron-3-super-120b-a12b:free",
+        "cost": 0,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\": [{\"statement\": \"ExampleCo published an annual report.\", \"source_ids\": [\"S1\"], \"category\": \"annual report\"}, {\"statement\": \"ExampleCo opened an office.\", \"source_ids\": [\"S2\"], \"category\": \"office opening\"}]}",
+        "completion_tokens": 59,
+        "analyst_json_pass": true,
+        "latency_seconds": 0.74,
+        "checked_at": "2026-10-10T03:35:54.605138+00:00"
+      },
+      "probe_history": []
+    },
+    {
+      "model": "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+      "catalog_present": true,
+      "name": "NVIDIA: Llama Nemotron Embed VL 1B V2 (free)",
+      "architecture": {
+        "modality": "text+image->embeddings",
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "embeddings"
+        ],
+        "tokenizer": "Other",
+        "instruct_type": null
+      },
+      "context_length": 131072,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0"
+      },
+      "supported_parameters": [],
+      "top_provider": {
+        "context_length": 131072,
+        "max_completion_tokens": 117964,
+        "is_moderated": false
+      },
+      "reasoning": null,
+      "zero_price": true,
+      "status": "catalog_only",
+      "probe": {
+        "endpoint": "/embeddings",
+        "attempts": 1,
+        "http_status": 200,
+        "returned_model": "private/openrouter/nvidia/llama-nemotron-embed-vl-1b-v2",
+        "cost": 0,
+        "status": "response_ok",
+        "dimensions": 2048,
+        "latency_seconds": 0.48,
+        "checked_at": "2026-10-10T03:35:58.294433+00:00"
+      },
+      "probe_history": []
+    }
+  ],
+  "account": {
+    "is_free_tier": true,
+    "free_model_daily_requests": {
+      "used": 17,
+      "limit": 50,
+      "remaining": 33
+    }
+  }
+}

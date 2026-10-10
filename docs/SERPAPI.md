@@ -46,6 +46,8 @@ Use buyer_universe for Buyer Discovery, or agent_type due_diligence / task_name 
 
 Parameters reject unknown fields. Country requires two lowercase letters; news_days is 1-365; the domain excludes protocols/paths. Run details are available at GET /api/v1/deals/{deal_id}/agents/runs/{run_id} and include research_evidence and research_report. Existing JWT and tenant checks apply.
 
+Run-specific Analyst Review Board operations are available under `/api/v1/research/deals/{deal_id}/runs/{run_id}`. Authenticated deal users can read review items. Reviewer/admin roles can create, update, remove, and export them. Every item cites 1–8 source IDs that the server verifies belong to that saved run; items do not carry across later runs.
+
 Evidence persists normalized source records and per-query coverage. Google News top-level, highlight, and nested stories are supported. URLs are deduplicated; unsafe clickable schemes/private IPs and credential-like query fields are excluded. Source IDs are local to each run.
 
 Coverage is complete only if every planned live query yields usable normalized evidence; partial retains usable evidence when another query fails or is empty. Empty results produce no factual conclusions and a failed run with reviewable evidence/exports where collection finished. Demo coverage refers only to a fixture exercise.
@@ -65,13 +67,13 @@ Provider billing depends on account rules and provider cache behavior; the reque
 
 ## Optional AI interpretation
 
-Set a backend GEMINI_API_KEY or NVIDIA_API_KEY and select AI interpretation. The LLM receives at most 24 normalized source excerpts, titles, dates, purposes, and IDs. No uploaded documents are supplied by this research path.
+Set a backend `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, or `NVIDIA_API_KEY` and select AI interpretation. `LLM_PROVIDER=auto` prefers a configured OpenRouter key, then Gemini, then NVIDIA. Set `LLM_PROVIDER=openrouter` for the verified free-only path, or explicitly select `gemini`/`nvidia`. OpenRouter uses a bounded free-model fallback and stops on quota errors; see [its verification and limits](OPENROUTER.md). Gemini defaults to `gemini-3.8-flash`; set `GEMINI_MODEL` to another supported model ID when needed. The LLM receives at most 24 normalized source excerpts, titles, dates, purposes, and IDs. No uploaded documents are supplied by this research path.
 
 Output is schema-checked and every citation ID must exist. Unknown-ID observations are removed; invalid/empty output falls back to excerpts. Citation existence does not verify semantic support. Every AI observation is labeled analyst_interpretation and requires review.
 
 ## Exports and configuration
 
-Research produces a PDF and JSON; diligence also produces XLSX. Filenames include the run ID. PDFs contain references and provenance; spreadsheets escape formula-like source text. Exports use existing draft/reviewer approval/download controls.
+Research produces a PDF and JSON; diligence also produces XLSX. Filenames include the run ID. PDFs contain references and provenance; spreadsheets escape formula-like source text. Exporting the Analyst Review Board creates new versioned PDF/JSON files containing the board snapshot, linked source metadata, run identity, mode, coverage, retrieval context, and export time. It does not overwrite earlier approved files. All exports use existing draft/reviewer approval/download controls.
 
 Docker includes DejaVu fonts for PDF text, including the rupee symbol. Local installs can set AIBAA_PDF_FONT_DIR to a directory containing DejaVuSans.ttf and DejaVuSans-Bold.ttf; otherwise ReportLab's standard fonts are used. JSON preserves original Unicode text. Non-Latin scripts and uncommon glyphs still need visual review.
 

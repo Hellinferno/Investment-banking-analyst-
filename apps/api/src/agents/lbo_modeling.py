@@ -1,7 +1,7 @@
 """
 LBOModelingAgent — orchestrates the full LBO pipeline:
 
-  1. Extract LBO financials via LLM (using build_lbo_extraction_prompt)
+  1. Reuse the unit-aware financial preparer and derive LBO EBITDA/revenue
   2. Compute LBO model via LBOEngine
   3. Generate IRR sensitivity matrix
   4. Write IB-quality Excel workbook via WorkbookBuilder.write_lbo_model()
@@ -14,11 +14,12 @@ from __future__ import annotations
 import json
 import logging
 import re
+import math
 from typing import Any
 
 from agents.base import BaseAgent
 from agents.prompt_builder import PromptBuilder
-from engine.llm import ask_llm
+from agents.extractor import PreparerAgent
 from engine.lbo import LBOEngine
 
 logger = logging.getLogger(__name__)
@@ -53,9 +54,8 @@ class LBOModelingAgent(BaseAgent):
                 self.observe("Required LBO params provided directly — skipping LLM extraction.")
             else:
                 self.act("llm_extract", "extracting LBO financial inputs from documents")
-                prompt = PromptBuilder.build_lbo_extraction_prompt(doc_context, self.params)
-                raw = ask_llm(self.system_prompt, prompt)
-                extracted = self._parse_extraction(raw)
+                prepared = PreparerAgent.extract(self.system_prompt, doc_context, self.params, company)
+                extracted = self._from_preparer(prepared)
                 self.observe(
                     f"Extracted: EBITDA={extracted.get('entry_ebitda')}, "
                     f"Revenue={extracted.get('revenue_ltm')}, "
@@ -166,6 +166,23 @@ class LBOModelingAgent(BaseAgent):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _from_preparer(prepared: dict) -> dict:
+        """Reuse DCF's unit-aware extraction; derive LBO inputs deterministically."""
+        data = prepared.get("extracted_data") or {}
+        revenues = data.get("historical_revenues")
+        margins = data.get("historical_ebitda_margins")
+        if not isinstance(revenues, list) or not isinstance(margins, list) or not revenues or len(revenues) != len(margins):
+            raise ValueError("LBO requires aligned source-backed revenue and EBITDA-margin history.")
+        revenue, margin = revenues[-1], margins[-1]
+        if any(not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) for value in (revenue, margin)):
+            raise ValueError("LBO source financial inputs must be finite numbers.")
+        if revenue <= 0 or not 0 < margin <= 1:
+            raise ValueError("LBO requires positive revenue and a valid positive EBITDA margin.")
+        return {**data, "entry_ebitda": revenue * margin, "revenue_ltm": revenue,
+                "ebitda_margin_ltm": margin, "extraction_confidence": 0.5,
+                "notes": "EBITDA derived from the latest completed-year revenue and margin; source evidence requires analyst review."}
 
     def _parse_extraction(self, raw: str) -> dict:
         """Parse LBO extraction JSON from LLM response."""

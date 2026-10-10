@@ -464,7 +464,14 @@ export default function AgentsTab({ dealId }: Props) {
                 </div>
             )}
 
-            {result?.research_evidence && <ResearchResultsView evidence={result.research_evidence} report={result.research_report} />}
+            {result?.research_evidence && (
+                <ResearchResultsView
+                    dealId={dealId}
+                    runId={result.run_id}
+                    evidence={result.research_evidence}
+                    report={result.research_report}
+                />
+            )}
             {result?.status === 'completed' && result.research_evidence && (
                 <p className="research-note">PDF and JSON exports are available in the Outputs tab. Diligence also includes an Excel review checklist. Approve a draft there before downloading it.</p>
             )}

@@ -49,7 +49,7 @@ class CoordinationAgent(BaseAgent):
 
             self.act("ask_llm", "extracting tasks and action items via LLM")
             prompt = PromptBuilder.build_coordination_prompt(doc_context)
-            raw = ask_llm(self.system_prompt, prompt)
+            raw = ask_llm(self.system_prompt, prompt, task="coordination")
             self.observe(f"LLM response received ({len(raw)} chars). Parsing tasks.")
 
             tasks_data = self._parse_tasks_data(raw)

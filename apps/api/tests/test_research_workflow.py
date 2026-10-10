@@ -1,6 +1,9 @@
 import json
+from io import BytesIO
 from pathlib import Path
 
+import fitz
+from openpyxl import load_workbook
 import pytest
 from fastapi.testclient import TestClient
 
@@ -24,9 +27,9 @@ def client(monkeypatch):
     return TestClient(app)
 
 
-def auth(client, tenant=None):
+def auth(client, tenant=None, role="reviewer"):
     response = client.post("/api/v1/auth/dev-token", headers={"X-Dev-API-Token": "dev-local-token"},
-                           json={"requested_role": "reviewer", "tenant_id": tenant})
+                           json={"requested_role": role, "tenant_id": tenant})
     assert response.status_code == 200
     return {"Authorization": "Bearer " + response.json()["data"]["access_token"]}
 
@@ -98,6 +101,120 @@ def test_demo_diligence_produces_review_checklist_without_risk_score(client, mon
     outputs = client.get(f"/api/v1/deals/{deal_id}/outputs", headers=headers).json()["data"]
     assert {o["output_type"] for o in outputs} == {"pdf", "json", "xlsx"}
     assert "synthetic" in " ".join(response.json()["data"]["research_report"]["warnings"])
+    workbook_output = next(output for output in outputs if output["output_type"] == "xlsx")
+    assert client.patch(
+        f"/api/v1/outputs/{workbook_output['id']}/review",
+        headers=headers,
+        json={"review_status": "approved"},
+    ).status_code == 200
+    workbook_bytes = client.get(f"/api/v1/outputs/{workbook_output['id']}/download", headers=headers).content
+    workbook = load_workbook(BytesIO(workbook_bytes), read_only=False)
+    assert workbook["Sources"]["C2"].hyperlink.target.startswith("https://")
+    assert workbook["Review Checklist"].column_dimensions["B"].width == 90
+
+
+def test_review_board_is_run_scoped_authorized_and_exports_immutable_snapshots(client, monkeypatch):
+    monkeypatch.setenv("AIBAA_RESEARCH_MODE", "demo")
+    headers = auth(client)
+    deal_id = create(client, headers)
+    run_response = client.post(
+        f"/api/v1/deals/{deal_id}/agents/run",
+        headers=headers,
+        json={"agent_type": "research", "task_name": "industry_brief", "parameters": {}},
+    )
+    assert run_response.status_code == 202, run_response.text
+    run_id = run_response.json()["data"]["run_id"]
+    review_url = f"/api/v1/research/deals/{deal_id}/runs/{run_id}/review-items"
+
+    initial_outputs = client.get(f"/api/v1/deals/{deal_id}/outputs", headers=headers).json()["data"]
+    initial_json = next(output for output in initial_outputs if output["output_type"] == "json")
+    assert initial_json["version"] == 1
+    assert client.patch(
+        f"/api/v1/outputs/{initial_json['id']}/review",
+        headers=headers,
+        json={"review_status": "approved"},
+    ).status_code == 200
+    initial_bytes = client.get(f"/api/v1/outputs/{initial_json['id']}/download", headers=headers).content
+
+    bad_source = client.post(review_url, headers=headers, json={
+        "kind": "question", "title": "Unknown citation", "note": "", "next_action": "",
+        "source_ids": ["S999"], "status": "unreviewed",
+    })
+    assert bad_source.status_code == 422 and "Unknown source IDs" in bad_source.text
+
+    created = client.post(review_url, headers=headers, json={
+        "kind": "question",
+        "title": "<b>Confirm company identity</b>",
+        "note": "Check the source against the official company site.",
+        "next_action": "Open the cited page and record the legal entity name.",
+        "source_ids": ["S1"],
+        "status": "unreviewed",
+    })
+    assert created.status_code == 201, created.text
+    item = created.json()["data"]
+    assert item["title"] == "Confirm company identity"
+    assert item["sources"][0]["url"] == "https://example.com/annual-report"
+
+    analyst_headers = auth(client, role="analyst")
+    assert client.patch(
+        f"{review_url}/{item['id']}", headers=analyst_headers, json={"status": "reviewed"}
+    ).status_code == 403
+    other_headers = auth(client, tenant="other-tenant")
+    assert client.get(review_url, headers=other_headers).status_code == 404
+
+    updated = client.patch(
+        f"{review_url}/{item['id']}",
+        headers=headers,
+        json={"status": "needs_follow_up", "note": "Identity still needs confirmation."},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["data"]["status"] == "needs_follow_up"
+    assert client.get(review_url, headers=headers).json()["data"][0]["note"] == "Identity still needs confirmation."
+    assert client.patch(f"{review_url}/{item['id']}", headers=headers, json={"title": None}).status_code == 422
+
+    exported = client.post(
+        f"/api/v1/research/deals/{deal_id}/runs/{run_id}/review-export",
+        headers=headers,
+    )
+    assert exported.status_code == 201, exported.text
+    export_data = exported.json()["data"]
+    assert export_data["version"] == 2 and export_data["review_item_count"] == 1
+    assert {output["output_type"] for output in export_data["outputs"]} == {"pdf", "json"}
+
+    for output in export_data["outputs"]:
+        assert client.patch(
+            f"/api/v1/outputs/{output['id']}/review",
+            headers=headers,
+            json={"review_status": "approved"},
+        ).status_code == 200
+        artifact = client.get(f"/api/v1/outputs/{output['id']}/download", headers=headers)
+        assert artifact.status_code == 200
+        if output["output_type"] == "json":
+            snapshot = json.loads(artifact.content)
+            assert snapshot["research_run_id"] == run_id
+            assert snapshot["review_items"][0]["source_ids"] == ["S1"]
+            assert snapshot["review_items"][0]["sources"][0]["url"] == "https://example.com/annual-report"
+        else:
+            pdf = fitz.open(stream=artifact.content, filetype="pdf")
+            pdf_text = "\n".join(page.get_text() for page in pdf)
+            assert "Analyst Review Board" in pdf_text
+            assert "Confirm company identity" in pdf_text
+
+    assert client.get(f"/api/v1/outputs/{initial_json['id']}/download", headers=headers).content == initial_bytes
+
+    second_run = client.post(
+        f"/api/v1/deals/{deal_id}/agents/run",
+        headers=headers,
+        json={"agent_type": "research", "task_name": "industry_brief", "parameters": {}},
+    ).json()["data"]["run_id"]
+    second_items = client.get(
+        f"/api/v1/research/deals/{deal_id}/runs/{second_run}/review-items",
+        headers=headers,
+    )
+    assert second_items.status_code == 200 and second_items.json()["data"] == []
+
+    assert client.delete(f"{review_url}/{item['id']}", headers=headers).status_code == 200
+    assert client.get(review_url, headers=headers).json()["data"] == []
 
 
 def test_missing_live_key_and_invalid_parameters_are_reported_before_dispatch(client, monkeypatch):

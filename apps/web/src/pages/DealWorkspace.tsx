@@ -63,7 +63,7 @@ export default function DealWorkspace() {
     return (
         <div style={{ minHeight: '100vh' }}>
             {/* Top Bar */}
-            <div style={{
+            <div className="deal-topbar" style={{
                 padding: '12px 28px',
                 borderBottom: '1px solid #222',
                 display: 'flex', alignItems: 'center', gap: 14,
@@ -76,7 +76,7 @@ export default function DealWorkspace() {
                     <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#fff' }}>{deal.name}</h1>
                     <p style={{ color: '#555', fontSize: 11, margin: 0 }}>{deal.company_name} · {deal.deal_type}</p>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div className="deal-badges" style={{ display: 'flex', gap: 6 }}>
                     {currentUser && <span className="badge badge-amber">{currentUser.role}</span>}
                     <span className="badge badge-indigo">{deal.deal_type}</span>
                     <span className="badge badge-emerald">{deal.deal_stage}</span>
@@ -84,7 +84,7 @@ export default function DealWorkspace() {
             </div>
 
             {/* Tab Nav */}
-            <div style={{
+            <div className="deal-tab-nav" style={{
                 display: 'flex', gap: 0, padding: '0 28px',
                 borderBottom: '1px solid #222',
                 background: '#000'
@@ -102,7 +102,7 @@ export default function DealWorkspace() {
             </div>
 
             {/* Tab Content */}
-            <div style={{ padding: '24px 28px' }}>
+            <div className="deal-content" style={{ padding: '24px 28px' }}>
                 {activeTab === 'overview' && (
                     <div className="animate-fade-in">
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, marginBottom: 20, border: '1px solid #222', borderRadius: 3, overflow: 'hidden' }}>

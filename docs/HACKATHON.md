@@ -17,6 +17,8 @@ The hackathon contribution adds:
 - Normalized evidence, provenance, citations, coverage, caching, and safe failure handling.
 - Reworked research and public diligence discovery agents.
 - Source review/filtering UI, search settings, explicit demo mode, and saved-run restoration.
+- Persistent run-specific Analyst Review Board for cited observations, questions, review statuses, and next actions.
+- Immutable versioned PDF/JSON board snapshots that preserve linked source context.
 - Cited PDF/JSON exports and a diligence Excel checklist.
 - DCF result/checkpoint persistence fix, distinct filenames for repeat exports, explicit comps labels, shared runtime paths, setup/proxy fixes, regression checks, and CI.
 
@@ -42,9 +44,10 @@ Optional AI interpretation can be shown after the source-only workflow works. Ne
 | --- | --- | --- |
 | 0:00-0:20 | Deal workspace | Analysts need a traceable company brief, not disconnected search tabs |
 | 0:20-0:50 | Company Intelligence settings and a live run | Four focused Google Search/News queries; public metadata only |
-| 0:50-1:35 | Coverage, source links, excerpts, citation jumps/filter | View where observations came from and which queries were incomplete |
-| 1:35-2:10 | Diligence Discovery | Source-linked checklist for human investigation; no invented risk score |
-| 2:10-2:40 | Outputs, approve, PDF/JSON/XLSX | Reviewable artifacts preserve provenance |
+| 0:50-1:25 | Coverage, source links, excerpts, citation jumps/filter | View where observations came from and which queries were incomplete |
+| 1:25-1:55 | Analyst Review Board | Save a cited open question, next action, and analyst review status |
+| 1:55-2:20 | Diligence Discovery | Source-linked checklist for human investigation; no invented risk score |
+| 2:20-2:45 | Outputs, approve, PDF/JSON/XLSX | Versioned artifacts preserve the reviewed source context |
 | 2:40-2:55 | Existing DCF/LBO context and contribution disclosure | New search-backed intelligence extends the existing analyst workspace |
 
 For predictable timing, rehearse the same public company first and disclose when a response is cached. Do not present an offline fixture as a live search.
@@ -53,11 +56,14 @@ For predictable timing, rehearse the same public company first and disclose when
 
 Automated tests use mocked SerpApi and explicit offline modeling fixtures, with keys disabled. They cover retries, quota/authentication errors, caching, nested news, source handling, partial/empty results, citation validation, exports, persistence, access controls, and historical financial regressions. Frontend TypeScript/build and ESLint checks are included.
 
+Completed on 9 October 2026: bounded live Infosys Company Intelligence and Diligence Discovery runs, approval/download of PDF/JSON/XLSX artifacts, a versioned Analyst Review Board export, and optional Gemini free-tier synthesis using the current configurable model. The live source set was useful for discovery but mixed in quality; official filings still require manual retrieval and corroboration.
+
 Before submission, still complete:
-- A real SerpApi run using your account, and a real LLM run if demonstrating synthesis.
-- A browser walkthrough at desktop and narrow widths, including refresh/resume and output approval.
-- Docker Compose build/run if using containers for the presentation.
+- Confirm an interactive browser's save-to-disk download before recording. Desktop/390px research/review/refresh/approval actions were checked; headless download HTTP requests passed, but automatic file save was not confirmed.
+- Finish the API Docker image/runtime check if using containers for the presentation; the web image built, while local network/Windows process failures interrupted the API build.
 - A recording within the organizer's limit and the required submission fields/links.
 - Current event rules, eligibility, track, deadline, and public-repository requirements.
 
 Known scope: discovery excerpts rather than full-page verification; no live stock-price feed or sourced financial comparable calculations; single-process background jobs; no auto-refresh monitoring or cancellation. No hackathon submission or public deployment is performed by these changes.
+
+On 10 October 2026 the LLM work expanded to the whole project, not just search synthesis. OpenRouter and direct NVIDIA have task-specific model settings, persistent request controls, and synthetic financial/drafting/coordination checks. See [the project-wide plan](LLM_PROJECT_PLAN.md). These model checks do not establish the truth of financial statements or replace analyst review.

@@ -19,7 +19,7 @@ from engine.llm import _get_deterministic_fallback_response
 ])
 def test_historical_modeling_regression(filename, monkeypatch):
     monkeypatch.setattr("agents.modeling.ask_llm",
-                        lambda system, prompt: _get_deterministic_fallback_response(prompt))
+                        lambda system, prompt, **kwargs: _get_deterministic_fallback_response(prompt))
     runpy.run_path(str(Path(__file__).resolve().parents[1] / filename), run_name="__main__")
 
 
@@ -27,7 +27,7 @@ def test_repeated_dcf_runs_preserve_results_and_prior_exports(monkeypatch):
     from agents.modeling import FinancialModelingAgent
     from store import Deal, store
     monkeypatch.setattr("agents.modeling.ask_llm",
-                        lambda system, prompt: _get_deterministic_fallback_response(prompt))
+                        lambda system, prompt, **kwargs: _get_deterministic_fallback_response(prompt))
     deal = Deal(name="Repeated fixture", company_name="Synthetic Fixture Company")
     store.deals[deal.id] = deal
     runs, paths = [], []

@@ -1168,7 +1168,7 @@ class FinancialModelingAgent(BaseAgent):
             self.observe("Preparer returned no usable data. Retrying with legacy extraction prompt.")
             self.act("llm_inference", "Running legacy financial extraction fallback")
             try:
-                raw_response = ask_llm(self.system_prompt, legacy_prompt)
+                raw_response = ask_llm(self.system_prompt, legacy_prompt, task="financial")
                 llm_data = self._parse_llm_response(raw_response)
                 extraction_mode = str(llm_data.get("extraction_mode", "legacy_llm"))
                 fallback_mode = extraction_mode.lower() == "deterministic_fallback"
@@ -2010,7 +2010,7 @@ class FinancialModelingAgent(BaseAgent):
                     run_rate_data=run_rate_data_for_validator,
                 )
                 validator_system = "You are a DCF quality checker. Return only valid JSON."
-                raw_validator_response = ask_llm(validator_system, validator_prompt)
+                raw_validator_response = ask_llm(validator_system, validator_prompt, task="financial")
                 raw_validator_response = raw_validator_response.strip()
                 import re as _re
                 raw_validator_response = _re.sub(r"<think>.*?</think>", "", raw_validator_response, flags=_re.DOTALL).strip()

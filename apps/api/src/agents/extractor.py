@@ -22,7 +22,7 @@ class PreparerAgent:
         prompt = PromptBuilder.build_preparer_prompt(params, document_context, company_name)
 
         try:
-            raw_response = ask_llm(system_prompt, prompt)
+            raw_response = ask_llm(system_prompt, prompt, task="financial")
             parsed = cls._parse_preparer_response(raw_response)
 
             audit_trail = parsed.pop("audit_trail", [])

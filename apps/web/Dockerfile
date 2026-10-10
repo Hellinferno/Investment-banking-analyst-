@@ -4,7 +4,8 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 COPY apps/web/package.json apps/web/package-lock.json ./
-RUN npm ci --prefer-offline
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 
 COPY apps/web/ ./
 RUN npm run build

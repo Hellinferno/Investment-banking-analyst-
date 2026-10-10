@@ -51,7 +51,7 @@ class PitchbookAgent(BaseAgent):
             prompt = PromptBuilder.build_pitchbook_prompt(deal_info, dcf_result, doc_context)
 
             self.act("ask_llm", "generating pitchbook sections via LLM")
-            raw = ask_llm(self.system_prompt, prompt)
+            raw = ask_llm(self.system_prompt, prompt, task="draft")
 
             self.observe(f"LLM response received ({len(raw)} chars). Parsing JSON sections.")
             sections = self._parse_sections(raw)

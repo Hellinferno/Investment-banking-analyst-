@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-10-10T04:13:24.930703+00:00",
+  "providers": {
+    "nvidia": {
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "financial_model": "nvidia/nemotron-3-super-120b-a12b",
+      "synthetic_inputs_only": true,
+      "checks": [
+        {
+          "workflow": "lbo_extraction_and_engine",
+          "passed": true,
+          "ebitda_and_revenue_exact": true,
+          "extracted_ebitda": 292820000.0,
+          "extracted_revenue": 1464100000,
+          "deterministic_irr_pct": 17.09,
+          "latency_seconds": 16.05,
+          "observed_model": "nvidia/nemotron-3-super-120b-a12b"
+        }
+      ]
+    }
+  }
+}

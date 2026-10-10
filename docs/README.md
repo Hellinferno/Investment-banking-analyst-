@@ -5,6 +5,8 @@ This folder mixes current implementation notes with forward-looking design docum
 ## Good Starting Points
 
 - [SERPAPI.md](SERPAPI.md): implemented search, evidence, exports, limits, and API parameters
+- [LLM_PROJECT_PLAN.md](LLM_PROJECT_PLAN.md): whole-project OpenRouter/NVIDIA roles, live contract checks, specialist-model fit, and limitations
+- [OPENROUTER.md](OPENROUTER.md): all supplied OpenRouter model probes and request controls
 - [HACKATHON.md](HACKATHON.md): contribution disclosure and demo sequence
 - [04-system-architecture.md](04-system-architecture.md): system-level architecture and major backend/frontend responsibilities
 - [06-api-contracts.md](06-api-contracts.md): API surface and request/response expectations

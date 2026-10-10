@@ -8,13 +8,13 @@ AI Investment Banking Analyst Agent combines public company discovery with an ex
 
 | Workflow | Inputs | Outputs |
 | --- | --- | --- |
-| Company Intelligence | Public company name, industry, country, optional known domain | Search evidence, cited observations, PDF and JSON |
+| Company Intelligence | Public company name, industry, country, optional known domain | Search evidence, cited observations, persistent Analyst Review Board, PDF and JSON |
 | Buyer Discovery | Same public metadata | Transaction/buyer mentions for review; interest is not established |
 | Diligence Discovery | Same public metadata | Public-source observations, PDF, JSON, Excel review checklist |
 | DCF / LBO | Financial documents and analyst assumptions; extraction may require an LLM key | Deterministic calculations and Excel models |
 | Other existing agents | Deal documents / model context | Pitchbook, CIM draft, meeting notes |
 
-Search uses SerpApi Google Search and Google News. Source IDs, URLs, publisher, publication date when available, query, retrieval time, search ID, and cache status are persisted with each run. Optional AI interpretation requires Gemini or NVIDIA configuration; invalid output falls back to source excerpts.
+Search uses SerpApi Google Search and Google News. Source IDs, URLs, publisher, publication date when available, query, retrieval time, search ID, and cache status are persisted with each run. Optional AI interpretation supports OpenRouter free models, Gemini, or NVIDIA; invalid output falls back to source excerpts.
 
 Search excerpts are discovery evidence. They do not establish financial inputs, company identity, buyer interest, or legal/risk conclusions. Existing comparable multiples are preset sector assumptions, explicitly labeled as illustrative.
 
@@ -33,7 +33,7 @@ Activate the environment:
 - macOS/Linux: `source .venv/bin/activate`
 - Windows PowerShell: `.venv\Scripts\Activate.ps1`
 
-Install dependencies and configure **SERPAPI_API_KEY in the root .env**, keeping `AIBAA_RESEARCH_MODE=live`:
+Install dependencies and configure **SERPAPI_API_KEY in the root .env**, keeping `AIBAA_RESEARCH_MODE=live`. Optional Gemini interpretation uses `GEMINI_API_KEY` and defaults to `GEMINI_MODEL=gemini-3.8-flash`:
 
 ```bash
 python -m pip install -r apps/api/requirements-dev.txt
@@ -53,6 +53,16 @@ npm run dev -- --host 127.0.0.1
 Open http://localhost:5173. API docs: http://localhost:8000/docs.
 
 The development frontend exchanges its bootstrap token for a JWT, using the reviewer role so outputs can be approved. Development credentials are local-only. Keep SerpApi and LLM keys in the backend; never add them to a VITE variable.
+
+### OpenRouter free models
+
+Set `OPENROUTER_API_KEY` and `LLM_PROVIDER=openrouter` in the root `.env`, then restart the API. General/research and drafting use `apodex/apodex-1.1-mini:free`; financial extraction, auditing and DCF/LBO validation use `OPENROUTER_FINANCIAL_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free`. One fallback to `nvidia/nemotron-3.5-lightning:free` is available after server/network failure. `OPENROUTER_DRAFT_MODEL` and `OPENROUTER_COORDINATION_MODEL` can override those task categories.
+
+OpenRouter requests require explicit `:free` text-model IDs and current zero pricing. The app uses zero-price provider routing, at most two inference attempts per prompt, ten request starts per minute, and a persistent conservative 40-request UTC-day budget. It checks account quota before inference and stops on 429/access/credit errors. No paid model or direct-provider fallback occurs when OpenRouter is selected.
+
+See [OpenRouter verification and integration](docs/OPENROUTER.md) for all 21 model results, limits, configuration, and opt-in verification commands. An embedding, decision, moderation, or reranking model cannot replace the analyst chat model.
+
+For direct NVIDIA trial access, set `LLM_PROVIDER=nvidia` and `NVIDIA_API_KEY`. The configurable default is `nvidia/nemotron-3-super-120b-a12b`; SDK retries are disabled, output and input sizes are bounded, and a persistent local budget/cooldown guards calls across every agent. See [project-wide model evaluation](docs/LLM_PROJECT_PLAN.md) for workflow-specific results, NVIDIA screenshots/catalog checks, specialist-model fit, and identified repairs. Provider selection does not change the deterministic DCF or LBO mathematics.
 
 ### Offline rehearsal
 
@@ -77,8 +87,10 @@ Compose runs PostgreSQL and a same-origin Nginx API proxy. Runtime uploads/outpu
 3. Choose country and news window; optionally enter a known domain such as company.com.
 4. Confirm the public-metadata search selection and run.
 5. Review complete/partial/empty search coverage, queries, citations, and source links.
-6. Run Diligence Discovery for a source-linked Excel checklist.
-7. In Outputs, approve the draft as reviewer before downloading.
+6. Save observations or open questions to the run-specific Analyst Review Board, link 1–8 sources, and record a next action and review status.
+7. Export a new PDF/JSON board snapshot. Earlier approved export bytes are never overwritten.
+8. Run Diligence Discovery for a source-linked Excel checklist.
+9. In Outputs, approve the desired draft version as reviewer before downloading.
 
 Uploaded documents and deal notes are excluded from search queries. If AI interpretation is selected, normalized public search excerpts are sent to the configured LLM provider. Other existing agents may send uploaded document context to an LLM.
 
@@ -91,7 +103,7 @@ npm run lint
 npm run build
 ```
 
-The default suite includes existing backend checks, offline historical modeling regressions, mocked SerpApi HTTP behavior, research persistence, exports, authentication, and tenant boundaries. It isolates its database and disables real API keys. Historical company profiles are injected only by tests; they are not live financial data.
+The default suite includes existing backend checks, offline historical modeling regressions, mocked SerpApi HTTP behavior, research and review-board persistence, immutable versioned exports, authentication, and tenant boundaries. It isolates its database and disables real API keys. Historical company profiles are injected only by tests; they are not live financial data.
 
 CI runs backend tests and frontend lint/build. A live SerpApi key check, browser walkthrough, and container deployment check remain environment-specific validation.
 

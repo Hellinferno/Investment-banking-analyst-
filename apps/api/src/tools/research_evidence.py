@@ -170,7 +170,9 @@ def collect_evidence(company: str, industry: str, params: ResearchParameters, *,
             warnings.append("No usable sources were found. No factual research conclusions can be produced.")
     complete = all(s["status"] in {"success", "demo"} for s in searches)
     return {"mode": mode, "status": "complete" if complete else "partial" if sources else "empty",
-            "company_name": company, "industry": industry, "collected_at": collected_at,
+            "company_name": company, "industry": industry, "country": params.country,
+            "news_days": params.news_days, "official_domain": params.official_domain or None,
+            "collected_at": collected_at,
             "sources": sources, "searches": searches, "warnings": warnings}
 
 
@@ -196,7 +198,7 @@ def build_report(bundle: dict, *, synthesize: bool = False, diligence: bool = Fa
         try:
             if llm is None:
                 from engine.llm import ask_llm
-                llm = ask_llm
+                llm = lambda system, prompt: ask_llm(system, prompt, task="research")
             context = [{k: s[k] for k in ("id", "title", "snippet", "published_at", "purpose")} for s in bundle["sources"][:24]]
             prompt = "Write research observations" + (" for due diligence review" if diligence else " for a company analyst")
             raw = llm(

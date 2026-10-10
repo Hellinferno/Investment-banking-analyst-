@@ -60,7 +60,7 @@ class DocDrafterAgent(BaseAgent):
                 prompt = PromptBuilder.build_cim_section_prompt(
                     deal_info, doc_context, dcf_result, section_key
                 )
-                raw = ask_llm(self.system_prompt, prompt)
+                raw = ask_llm(self.system_prompt, prompt, task="draft")
                 sections[section_key] = raw.strip()
                 self.observe(f"Section '{section_label}' drafted ({len(sections[section_key])} chars).")
 

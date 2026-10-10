@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import threading
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -31,8 +32,12 @@ _load_env_files()
 
 # Check if API keys are available
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip() or "gemini-3.8-flash"
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
-NVIDIA_TIMEOUT_SECONDS = float(os.environ.get("NVIDIA_TIMEOUT_SECONDS", "8"))
+NVIDIA_MODEL = os.environ.get("NVIDIA_MODEL", "nvidia/nemotron-3-super-120b-a12b").strip() or "nvidia/nemotron-3-super-120b-a12b"
+NVIDIA_TIMEOUT_SECONDS = max(5, min(120, float(os.environ.get("NVIDIA_TIMEOUT_SECONDS", "90"))))
+NVIDIA_MAX_TOKENS = max(256, min(8192, int(os.environ.get("NVIDIA_MAX_TOKENS", "4096"))))
+NVIDIA_ENABLE_THINKING = os.environ.get("NVIDIA_ENABLE_THINKING", "false").lower() in {"true", "1", "yes"}
 NVIDIA_FALLBACK_ENABLED = os.environ.get("NVIDIA_FALLBACK_ENABLED", "true").lower() not in {
     "0",
     "false",
@@ -43,21 +48,27 @@ NVIDIA_FALLBACK_ENABLED = os.environ.get("NVIDIA_FALLBACK_ENABLED", "true").lowe
 # Primary Client: Gemini (only if key exists)
 gemini_client = genai.Client(api_key=GEMINI_API_KEY, http_options=types.HttpOptions(timeout=45000)) if GEMINI_API_KEY else None
 
-# Fallback Client: NVIDIA OpenAI endpoint (DeepSeek)
+# Direct NVIDIA hosted trial endpoint, never a partner endpoint.
 nvidia_client = (
     OpenAI(
         base_url="https://integrate.api.nvidia.com/v1",
         api_key=NVIDIA_API_KEY,
         timeout=NVIDIA_TIMEOUT_SECONDS,
+        max_retries=0,
     )
     if NVIDIA_API_KEY and NVIDIA_FALLBACK_ENABLED
     else None
 )
+_nvidia_lock = threading.Lock()
+_nvidia_budget = None
 
 
 def _sanitize_error(err: Exception) -> str:
     """Return a safe error description that cannot leak API keys or internal paths."""
     msg = str(err)
+    for secret in (GEMINI_API_KEY, NVIDIA_API_KEY, os.getenv("OPENROUTER_API_KEY", "")):
+        if secret:
+            msg = msg.replace(secret, "[REDACTED]")
     # Redact any token/key-like sequences (40+ hex or base64 chars)
     msg = re.sub(r"[A-Za-z0-9_\-]{40,}", "[REDACTED]", msg)
     # Redact file system paths
@@ -87,26 +98,98 @@ def _is_transient_error(err: Exception) -> bool:
 def _call_gemini(system_prompt: str, user_prompt: str) -> str:
     """Call Gemini with automatic retry on transient errors (up to 3 attempts)."""
     response = gemini_client.models.generate_content(
-        model="gemini-2.5-flash",
+        model=GEMINI_MODEL,
         contents=user_prompt,
         config=types.GenerateContentConfig(
             system_instruction=system_prompt,
-            temperature=0.0,
         ),
     )
     return response.text
 
 
-def ask_llm(system_prompt: str, user_prompt: str) -> str:
+def llm_provider() -> str:
+    """An explicit provider never falls through to a different billing account."""
+    provider = os.getenv("LLM_PROVIDER", "auto").strip().lower() or "auto"
+    if provider not in {"auto", "openrouter", "gemini", "nvidia"}:
+        raise RuntimeError("LLM_PROVIDER must be auto, openrouter, gemini, or nvidia.")
+    if provider != "auto":
+        return provider
+    if os.getenv("OPENROUTER_API_KEY", "").strip():
+        return "openrouter"
+    if gemini_client:
+        return "gemini"
+    return "nvidia" if nvidia_client else "none"
+
+
+def llm_configured() -> bool:
+    try:
+        provider = llm_provider()
+    except RuntimeError:
+        return False
+    return bool({"openrouter": os.getenv("OPENROUTER_API_KEY", "").strip(),
+                 "gemini": gemini_client, "nvidia": nvidia_client}.get(provider))
+
+
+def _call_nvidia(system_prompt: str, user_prompt: str, *, task: str = "general") -> str:
+    global _nvidia_budget
+    if not nvidia_client:
+        raise RuntimeError("NVIDIA client is not configured or its fallback is disabled.")
+    if len(system_prompt) + len(user_prompt) > int(os.getenv("NVIDIA_MAX_PROMPT_CHARS", "120000")):
+        raise RuntimeError("NVIDIA prompt exceeds its configured character limit; reduce the document context.")
+    with _nvidia_lock:
+        if _nvidia_budget is None:
+            from config import DATA_ROOT
+            from engine.request_budget import RequestBudget
+            _nvidia_budget = RequestBudget("NVIDIA", NVIDIA_API_KEY, DATA_ROOT / "nvidia_usage.sqlite3",
+                                           max(1, min(1000, int(os.getenv("NVIDIA_DAILY_REQUEST_LIMIT", "40")))),
+                                           max(1, min(20, int(os.getenv("NVIDIA_REQUESTS_PER_MINUTE", "10")))))
+        _nvidia_budget.reserve()
+        try:
+            completion = nvidia_client.chat.completions.create(
+                model=os.getenv(f"NVIDIA_{task.upper()}_MODEL", "").strip() or NVIDIA_MODEL,
+                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+                temperature=0.0, top_p=0.95, max_tokens=NVIDIA_MAX_TOKENS,
+                timeout=NVIDIA_TIMEOUT_SECONDS,
+                extra_body={"chat_template_kwargs": {"enable_thinking": NVIDIA_ENABLE_THINKING}}, stream=False,
+            )
+        except Exception as exc:
+            if getattr(exc, "status_code", None) == 429:
+                response = getattr(exc, "response", None)
+                try:
+                    delay = max(60, min(86400, int(response.headers.get("Retry-After", "60")))) if response is not None else 60
+                except ValueError:
+                    delay = 60
+                _nvidia_budget.cooldown(delay)
+                raise RuntimeError(f"NVIDIA rate limit reached; retry after {delay} seconds.") from None
+            raise
+        choice = completion.choices[0] if completion.choices else None
+        if choice is None or choice.finish_reason == "length":
+            raise RuntimeError("NVIDIA returned no complete answer; reduce the task or raise NVIDIA_MAX_TOKENS.")
+        content = choice.message.content
+        if choice.finish_reason in ("error", "content_filter") or not isinstance(content, str) or not content.strip():
+            raise RuntimeError("NVIDIA returned no usable answer.")
+        return content
+
+
+def ask_llm(system_prompt: str, user_prompt: str, *, task: str = "general") -> str:
     """
-    Submit prompt to Gemini as primary model.
-    Transient errors are retried up to 3x with exponential backoff via tenacity.
-    Quota/rate limit errors go straight to deterministic fallback.
-    If Gemini fails entirely, uses NVIDIA DeepSeek fallback.
+    Use the selected provider. OpenRouter has only bounded free-model fallback.
+    Legacy automatic Gemini -> NVIDIA fallback is preserved without OpenRouter.
     """
-    if not GEMINI_API_KEY and not NVIDIA_API_KEY:
+    provider = llm_provider()
+    if task not in {"general", "financial", "draft", "coordination", "research"}:
+        raise RuntimeError("Unsupported LLM task category.")
+    if provider == "openrouter":
+        from engine.openrouter import ask_openrouter
+        return ask_openrouter(system_prompt, user_prompt, task=task)
+    if provider == "nvidia":
+        try:
+            return _call_nvidia(system_prompt, user_prompt, task=task)
+        except Exception as exc:
+            raise RuntimeError(f"NVIDIA LLM failed: {_sanitize_error(exc)}") from None
+    if provider == "none":
         logger.error("[LLM Engine] No API keys configured")
-        raise RuntimeError("No API keys found. For production readiness, fallback has been disabled. Please configure GEMINI_API_KEY.")
+        raise RuntimeError("No LLM key configured. Set OPENROUTER_API_KEY or GEMINI_API_KEY.")
 
     try:
         if gemini_client:
@@ -119,25 +202,12 @@ def ask_llm(system_prompt: str, user_prompt: str) -> str:
 
         logger.warning("[LLM Engine] Primary LLM failed: %s. Attempting fallback.", _sanitize_error(e_gemini))
 
-        if nvidia_client:
+        if nvidia_client and os.getenv("LLM_PROVIDER", "auto").strip().lower() in ("", "auto"):
             try:
-                completion = nvidia_client.chat.completions.create(
-                    model="deepseek-ai/deepseek-v3.2",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.0,
-                    top_p=0.95,
-                    max_tokens=8192,
-                    timeout=NVIDIA_TIMEOUT_SECONDS,
-                    extra_body={"chat_template_kwargs": {"thinking": True}},
-                    stream=False,
-                )
-                return completion.choices[0].message.content
+                return _call_nvidia(system_prompt, user_prompt, task=task)
             except Exception as e_nvidia:
                 logger.error("[LLM Engine] Fallback LLM also failed: %s", _sanitize_error(e_nvidia))
-                raise RuntimeError(f"Both primary and fallback LLMs failed: {e_gemini} | {e_nvidia}")
+                raise RuntimeError(f"Both primary and fallback LLMs failed: {_sanitize_error(e_gemini)} | {_sanitize_error(e_nvidia)}") from None
 
         logger.error("[LLM Engine] LLM failed and no alternative client configured")
         raise RuntimeError(f"Primary LLM failed: {_sanitize_error(e_gemini)}")
