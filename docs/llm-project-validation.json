@@ -1,0 +1,170 @@
+{
+  "checked_at": "2026-10-10T04:10:04.656734+00:00",
+  "providers": {
+    "openrouter": {
+      "model": "apodex/apodex-1.1-mini:free",
+      "synthetic_inputs_only": true,
+      "checks": [
+        {
+          "workflow": "financial_auditor",
+          "passed": true,
+          "overall_status": "flagged",
+          "deliberate_net_debt_error_caught": true,
+          "latency_seconds": 7.47
+        },
+        {
+          "workflow": "dcf_engine_and_validator",
+          "passed": true,
+          "overall": "PASS",
+          "deterministic_enterprise_value": 2508806859.49,
+          "latency_seconds": 5.78
+        },
+        {
+          "workflow": "pitchbook",
+          "passed": true,
+          "four_section_contract": true,
+          "market_size_text": "Not disclosed in source documentation",
+          "latency_seconds": 9.08
+        },
+        {
+          "workflow": "cim_financials",
+          "passed": true,
+          "section": "financials",
+          "characters": 2671,
+          "unknown_details_acknowledged": false,
+          "latency_seconds": 3.97
+        },
+        {
+          "workflow": "meeting_coordination",
+          "passed": true,
+          "task_count": 2,
+          "owners_and_dates_exact": true,
+          "latency_seconds": 5.2
+        },
+        {
+          "workflow": "financial_extraction",
+          "passed": true,
+          "numeric_checks": {
+            "historical_revenues": true,
+            "historical_ebitda_margins": true,
+            "net_debt": true,
+            "total_borrowings": true,
+            "lease_liabilities": true,
+            "lease_liabilities_current": true,
+            "lease_liabilities_noncurrent": true,
+            "cash_and_equivalents": true,
+            "shares_outstanding": true,
+            "cap_ex_percent_rev": true,
+            "da_percent_rev": true,
+            "base_fy": true,
+            "unknown_beta_not_invented": true
+          },
+          "mismatches": {},
+          "audit_citations": 31,
+          "latency_seconds": 66.89
+        },
+        {
+          "workflow": "lbo_extraction_and_engine",
+          "passed": false,
+          "ebitda_and_revenue_exact": false,
+          "deterministic_irr_pct": 17.09,
+          "latency_seconds": 7.61
+        },
+        {
+          "workflow": "cim_management",
+          "passed": true,
+          "section": "management",
+          "characters": 1859,
+          "unknown_details_acknowledged": true,
+          "latency_seconds": 2.38
+        }
+      ]
+    },
+    "nvidia": {
+      "model": "nvidia/nemotron-3-super-120b-a12b",
+      "financial_model": "nvidia/nemotron-3-super-120b-a12b",
+      "synthetic_inputs_only": true,
+      "checks": [
+        {
+          "workflow": "financial_extraction",
+          "passed": true,
+          "numeric_checks": {
+            "historical_revenues": true,
+            "historical_ebitda_margins": true,
+            "net_debt": true,
+            "total_borrowings": true,
+            "lease_liabilities": true,
+            "lease_liabilities_current": true,
+            "lease_liabilities_noncurrent": true,
+            "cash_and_equivalents": true,
+            "shares_outstanding": true,
+            "cap_ex_percent_rev": true,
+            "da_percent_rev": true,
+            "base_fy": true,
+            "unknown_beta_not_invented": true
+          },
+          "audit_citations": 31,
+          "latency_seconds": 21.7
+        },
+        {
+          "workflow": "dcf_engine_and_validator",
+          "passed": true,
+          "overall": "PASS",
+          "deterministic_enterprise_value": 2508806859.49,
+          "latency_seconds": 3.06
+        },
+        {
+          "workflow": "cim_financials",
+          "passed": true,
+          "section": "financials",
+          "characters": 2836,
+          "unknown_details_acknowledged": false,
+          "latency_seconds": 6.98
+        },
+        {
+          "workflow": "meeting_coordination",
+          "passed": true,
+          "task_count": 2,
+          "owners_and_dates_exact": true,
+          "latency_seconds": 3.89
+        },
+        {
+          "workflow": "financial_auditor",
+          "passed": true,
+          "overall_status": "flagged",
+          "deliberate_net_debt_error_caught": true,
+          "latency_seconds": 21.42,
+          "observed_model": "nvidia/nemotron-3-super-120b-a12b"
+        },
+        {
+          "workflow": "lbo_extraction_and_engine",
+          "passed": false,
+          "ebitda_and_revenue_exact": false,
+          "extracted_ebitda": 35.3256,
+          "extracted_revenue": 146.41,
+          "deterministic_irr_pct": 17.09,
+          "latency_seconds": 4.17,
+          "observed_model": "nvidia/nemotron-3-super-120b-a12b"
+        },
+        {
+          "workflow": "pitchbook",
+          "passed": true,
+          "four_section_contract": true,
+          "missing_market_size_not_invented": true,
+          "market_size_text": "not provided",
+          "latency_seconds": 16.69,
+          "observed_model": "nvidia/nemotron-3-super-120b-a12b"
+        },
+        {
+          "workflow": "cim_management",
+          "passed": true,
+          "section": "management",
+          "characters": 2703,
+          "unknown_details_acknowledged": true,
+          "latency_seconds": 6.22,
+          "observed_model": "nvidia/nemotron-3-super-120b-a12b"
+        }
+      ]
+    }
+  }
+}

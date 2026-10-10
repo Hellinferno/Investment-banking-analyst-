@@ -198,7 +198,7 @@ def build_report(bundle: dict, *, synthesize: bool = False, diligence: bool = Fa
         try:
             if llm is None:
                 from engine.llm import ask_llm
-                llm = ask_llm
+                llm = lambda system, prompt: ask_llm(system, prompt, task="research")
             context = [{k: s[k] for k in ("id", "title", "snippet", "published_at", "purpose")} for s in bundle["sources"][:24]]
             prompt = "Write research observations" + (" for due diligence review" if diligence else " for a company analyst")
             raw = llm(

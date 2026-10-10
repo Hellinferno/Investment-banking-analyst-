@@ -12,6 +12,7 @@ from models import APIResponse, Meta, ResearchReviewItemCreate, ResearchReviewIt
 from tools.research_evidence import research_mode
 from tools.research_export import export_research
 from tools.serpapi_client import SearchError
+from engine.llm import llm_configured
 
 router = APIRouter(prefix="/research", tags=["Research"])
 
@@ -23,7 +24,7 @@ def research_status(current_user: CurrentUserDep):
     except SearchError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from None
     return {"mode": mode, "search_configured": bool(os.getenv("SERPAPI_API_KEY", "").strip()),
-            "synthesis_configured": bool(os.getenv("GEMINI_API_KEY") or os.getenv("NVIDIA_API_KEY")),
+            "synthesis_configured": llm_configured(),
             "queries_per_run": 4, "max_http_attempts_per_run": 8, "cache_ttl_minutes": 30}
 
 

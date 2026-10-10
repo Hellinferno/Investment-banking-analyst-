@@ -1,0 +1,487 @@
+{
+  "checked_at": "2026-10-10T03:54:53.813049+00:00",
+  "endpoint": "https://integrate.api.nvidia.com/v1",
+  "models": [
+    {
+      "slug": "deepseek-v4.1-flash",
+      "role": "chat",
+      "catalog_matches": [
+        "deepseek-ai/deepseek-v4.1-flash"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "deepseek-ai/deepseek-v4.1-flash",
+        "checked_at": "2026-10-10T03:49:30.450639+00:00",
+        "status": "network_error",
+        "message": "ReadTimeout",
+        "latency_seconds": 60.02
+      }
+    },
+    {
+      "slug": "glm-5-3",
+      "role": "chat",
+      "catalog_matches": [
+        "z-ai/glm-5.3"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "z-ai/glm-5.3",
+        "checked_at": "2026-10-10T03:50:33.659905+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"corporate_disclosure\"},{\"statement\":\"A newspaper reported that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"media_report\"}]}",
+        "analyst_json_pass": true,
+        "latency_seconds": 5.08
+      }
+    },
+    {
+      "slug": "glm-5-3-flash",
+      "role": "chat",
+      "catalog_matches": [
+        "z-ai/glm-5.3-flash"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "z-ai/glm-5.3-flash",
+        "checked_at": "2026-10-10T03:50:41.952176+00:00",
+        "status": "network_error",
+        "message": "ReadTimeout",
+        "latency_seconds": 60.0
+      }
+    },
+    {
+      "slug": "kimi-k3",
+      "role": "chat",
+      "catalog_matches": [
+        "moonshotai/kimi-k3"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "moonshotai/kimi-k3",
+        "checked_at": "2026-10-10T03:51:45.159615+00:00",
+        "status": "network_error",
+        "message": "ReadTimeout",
+        "latency_seconds": 60.09
+      }
+    },
+    {
+      "slug": "nemotron-3.5-lightning-30b-a3b",
+      "role": "chat",
+      "catalog_matches": [
+        "nvidia/nemotron-3.5-lightning-30b-a3b"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "nvidia/nemotron-3.5-lightning-30b-a3b",
+        "checked_at": "2026-10-10T03:52:48.456795+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\n  \"findings\": [\n    {\n      \"statement\": \"ExampleCo published an annual report.\",\n      \"source_ids\": [\"S1\"],\n      \"category\": \"Corporate disclosure\"\n    },\n    {\n      \"statement\": \"A newspaper reports that ExampleCo opened an office.\",\n      \"source_ids\": [\"S2\"],\n      \"category\": \"Media report\"\n    }\n  ]\n}",
+        "analyst_json_pass": true,
+        "latency_seconds": 17.09
+      }
+    },
+    {
+      "slug": "muse-glimmer-30b",
+      "role": "chat",
+      "catalog_matches": [
+        "meta/muse-glimmer-30b"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "meta/muse-glimmer-30b",
+        "checked_at": "2026-10-10T03:53:08.759892+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"publication\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"reported_claim\"}]}",
+        "analyst_json_pass": true,
+        "latency_seconds": 11.33
+      }
+    },
+    {
+      "slug": "laguna-xs-2.1",
+      "role": "chat",
+      "catalog_matches": [
+        "poolside/laguna-xs-2.1"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "poolside/laguna-xs-2.1",
+        "checked_at": "2026-10-10T03:53:23.289080+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"reporting\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"reporting\"}]}",
+        "analyst_json_pass": true,
+        "latency_seconds": 3.81
+      }
+    },
+    {
+      "slug": "diffusiongemma-26b-a4b-it",
+      "role": "chat",
+      "catalog_matches": [
+        "google/diffusiongemma-26b-a4b-it"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "google/diffusiongemma-26b-a4b-it",
+        "checked_at": "2026-10-10T03:53:30.317894+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"Corporate Reporting\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"Business Expansion\"}]}",
+        "analyst_json_pass": true,
+        "latency_seconds": 0.42
+      }
+    },
+    {
+      "slug": "nemotron-3-ultra-550b-a55b",
+      "role": "chat",
+      "catalog_matches": [
+        "nvidia/nemotron-3-ultra-550b-a55b"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "nvidia/nemotron-3-ultra-550b-a55b",
+        "checked_at": "2026-10-10T03:53:33.951525+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"Corporate Disclosure\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"Media Report\"}]}",
+        "analyst_json_pass": true,
+        "latency_seconds": 3.58
+      }
+    },
+    {
+      "slug": "nemotron-3-nano-omni-30b-a3b-reasoning",
+      "role": "chat",
+      "catalog_matches": [
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        "checked_at": "2026-10-10T03:53:40.737222+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "\n{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"financial reporting\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"operational activity\"}]",
+        "analyst_json_pass": false,
+        "latency_seconds": 1.66
+      }
+    },
+    {
+      "slug": "gemma-4-31b-it",
+      "role": "chat",
+      "catalog_matches": [
+        "google/gemma-4-31b-it"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "google/gemma-4-31b-it",
+        "checked_at": "2026-10-10T03:53:45.612271+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "```json\n{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"corporate reporting\"},{\"statement\":\"A newspaper reports that ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"corporate expansion\"}]}\n```",
+        "analyst_json_pass": true,
+        "latency_seconds": 15.86
+      }
+    },
+    {
+      "slug": "nemotron-3-super-120b-a12b",
+      "role": "chat",
+      "catalog_matches": [
+        "nvidia/nemotron-3-super-120b-a12b"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "nvidia/nemotron-3-super-120b-a12b",
+        "checked_at": "2026-10-10T03:54:56.240176+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\n  \"findings\": [\n    {\n      \"statement\": \"ExampleCo published an annual report.\",\n      \"source_ids\": [\"S1\"],\n      \"category\": \"Company Reporting\"\n    },\n    {\n      \"statement\": \"A newspaper reports that ExampleCo opened an office.\",\n      \"source_ids\": [\"S2\"],\n      \"category\": \"Media Reporting\"\n    }\n  ]\n}",
+        "analyst_json_pass": true,
+        "latency_seconds": 0.75
+      }
+    },
+    {
+      "slug": "gpt-oss-20b",
+      "role": "chat",
+      "catalog_matches": [
+        "openai/gpt-oss-20b"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "openai/gpt-oss-20b",
+        "checked_at": "2026-10-10T03:55:00.192487+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"Annual Report\"},{\"statement\":\"According to a newspaper, ExampleCo opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"Office Opening Report\"}]}",
+        "analyst_json_pass": true,
+        "latency_seconds": 2.95
+      }
+    },
+    {
+      "slug": "llama-3.2-11b-vision-instruct",
+      "role": "chat",
+      "catalog_matches": [
+        "meta/llama-3.2-11b-vision-instruct"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "meta/llama-3.2-11b-vision-instruct",
+        "checked_at": "2026-10-10T03:55:06.359000+00:00",
+        "http_status": 200,
+        "status": "response_ok",
+        "finish_reason": "stop",
+        "response_excerpt": "{\"findings\":[{\"statement\":\"ExampleCo published an annual report.\",\"source_ids\":[\"S1\"],\"category\":\"Financial Report\"}]} \n\n{\"findings\":[{\"statement\":\"According to a newspaper report, ExampleCo has opened an office.\",\"source_ids\":[\"S2\"],\"category\":\"Rumored Business Expansion\"}]}",
+        "analyst_json_pass": false,
+        "latency_seconds": 2.5
+      }
+    },
+    {
+      "slug": "llama-3.2-90b-vision-instruct",
+      "role": "chat",
+      "catalog_matches": [
+        "meta/llama-3.2-90b-vision-instruct"
+      ],
+      "probe": {
+        "attempts": 1,
+        "model": "meta/llama-3.2-90b-vision-instruct",
+        "checked_at": "2026-10-10T03:55:12.067421+00:00",
+        "status": "network_error",
+        "message": "ReadTimeout",
+        "latency_seconds": 60.0
+      }
+    },
+    {
+      "slug": "Kumo Tabular",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Structured-table prediction; no analyst chat use.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "3D Body Pose",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Video/pose estimation; outside analyst workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "Kumo Relational",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Multi-table prediction; no analyst chat use.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "riva-translate-4b-instruct-v2",
+      "role": "specialist",
+      "catalog_matches": [
+        "nvidia/riva-translate-4b-instruct-v2"
+      ],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential multilingual document translation; not a financial extractor or general drafter.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "ising-calibration-1.5-31b",
+      "role": "specialist",
+      "catalog_matches": [
+        "nvidia/ising-calibration-1.5-31b"
+      ],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Quantum calibration; outside analyst workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "nemotron-3-embed-1b",
+      "role": "specialist",
+      "catalog_matches": [
+        "nvidia/nemotron-3-embed-1b"
+      ],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential document retrieval/RAG; requires an embedding endpoint, not the chat boundary.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "nemotron-3.5-content-safety",
+      "role": "specialist",
+      "catalog_matches": [
+        "nvidia/nemotron-3.5-content-safety"
+      ],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential input/output moderation; not a financial analyst generator.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "cosmos3-nano",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Image/video/action generation; outside analyst workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "cosmos3-nano-reasoner",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Physical-world video reasoning; outside analyst workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "synthetic-video-detector",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Synthetic-video detection; outside analyst workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "ising-calibration-1-35b-a3b",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Quantum calibration; outside analyst workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "cosmos-transfer2.5-2b",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Physics-aware video generation; no current investment-banking workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "streampetr",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Autonomous-driving object detection; no current investment-banking workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "llama-3.1-nemotron-safety-guard-8b-v3",
+      "role": "specialist",
+      "catalog_matches": [
+        "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+      ],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential multilingual document/prompt moderation; needs policy evaluation.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "llama-guard-4-12b",
+      "role": "specialist",
+      "catalog_matches": [
+        "meta/llama-guard-4-12b"
+      ],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential text/image moderation; not a financial extractor.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "Background Noise Removal",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential meeting-audio preprocessing; current ingestion is document/text only.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "magpie-tts-zeroshot",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential spoken report playback; current product has no speech output.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "sparsedrive",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Autonomous-driving planning; no current investment-banking workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "bevformer",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Autonomous-driving perception; no current investment-banking workflow.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "Studio Voice",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential meeting-audio preprocessing; current ingestion is document/text only.",
+        "attempts": 0
+      }
+    },
+    {
+      "slug": "paligemma",
+      "role": "specialist",
+      "catalog_matches": [],
+      "probe": {
+        "status": "not_probed_specialist",
+        "reason": "Potential scanned-document captioning; requires image-specific evaluation and endpoint format.",
+        "attempts": 0
+      }
+    }
+  ],
+  "catalog_count": 80
+}

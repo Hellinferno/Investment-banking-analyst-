@@ -59,9 +59,11 @@ Automated tests use mocked SerpApi and explicit offline modeling fixtures, with 
 Completed on 9 October 2026: bounded live Infosys Company Intelligence and Diligence Discovery runs, approval/download of PDF/JSON/XLSX artifacts, a versioned Analyst Review Board export, and optional Gemini free-tier synthesis using the current configurable model. The live source set was useful for discovery but mixed in quality; official filings still require manual retrieval and corroboration.
 
 Before submission, still complete:
-- A browser walkthrough at desktop and narrow widths, including refresh/resume and output approval.
-- Docker Compose build/run if using containers for the presentation.
+- Confirm an interactive browser's save-to-disk download before recording. Desktop/390px research/review/refresh/approval actions were checked; headless download HTTP requests passed, but automatic file save was not confirmed.
+- Finish the API Docker image/runtime check if using containers for the presentation; the web image built, while local network/Windows process failures interrupted the API build.
 - A recording within the organizer's limit and the required submission fields/links.
 - Current event rules, eligibility, track, deadline, and public-repository requirements.
 
 Known scope: discovery excerpts rather than full-page verification; no live stock-price feed or sourced financial comparable calculations; single-process background jobs; no auto-refresh monitoring or cancellation. No hackathon submission or public deployment is performed by these changes.
+
+On 10 October 2026 the LLM work expanded to the whole project, not just search synthesis. OpenRouter and direct NVIDIA have task-specific model settings, persistent request controls, and synthetic financial/drafting/coordination checks. See [the project-wide plan](LLM_PROJECT_PLAN.md). These model checks do not establish the truth of financial statements or replace analyst review.
